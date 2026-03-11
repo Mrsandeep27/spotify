@@ -1,6 +1,4 @@
-// ⚠️  Replace with your Railway backend URL after deploying
-export const API_BASE_URL = 'https://your-app.up.railway.app';
-// For local dev use: 'http://YOUR_LOCAL_IP:3000'
+export const API_BASE_URL = 'https://backend-production-fbb9.up.railway.app';
 
 export const SOCKET_URL = API_BASE_URL;
 
