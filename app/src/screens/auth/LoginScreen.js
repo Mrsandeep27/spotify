@@ -11,6 +11,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { AuthService } from '../../services/authService';
+import PendingApprovalScreen from './PendingApprovalScreen';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -21,6 +22,7 @@ export default function LoginScreen() {
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState(null); // non-null = show pending screen
 
   const [_request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com',
@@ -39,6 +41,7 @@ export default function LoginScreen() {
     try {
       await AuthService.signInWithGoogle(idToken, accessToken);
     } catch (e) {
+      if (e.code === 'pending_approval') { setPendingEmail(e.email || ''); return; }
       Alert.alert('Google Sign-In failed', e.message);
     } finally {
       setLoading(false);
@@ -59,11 +62,16 @@ export default function LoginScreen() {
         await AuthService.signUpWithEmail(email, password, displayName);
       }
     } catch (e) {
+      if (e.code === 'pending_approval') { setPendingEmail(email); return; }
       Alert.alert('Error', e.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (pendingEmail !== null) {
+    return <PendingApprovalScreen email={pendingEmail} />;
+  }
 
   return (
     <LinearGradient colors={['#0a3d1f', '#121212', '#121212']} style={styles.container}>

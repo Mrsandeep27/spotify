@@ -8,11 +8,39 @@ const requireAuth = require('../middleware/auth');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Comma-separated emails that are auto-approved (e.g. your own email)
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
+
 function signToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, displayName: user.display_name, avatarUrl: user.avatar_url },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
+  );
+}
+
+async function logLogin(userId, email, method, req) {
+  const { deviceId, deviceName, os, appVersion } = req.body;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+
+  if (deviceId) {
+    await pool.query(
+      `INSERT INTO devices (user_id, device_id, device_name, os, app_version, last_seen)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (user_id, device_id)
+       DO UPDATE SET device_name = $3, os = $4, app_version = $5, last_seen = NOW()`,
+      [userId, deviceId, deviceName || null, os || null, appVersion || null]
+    );
+  }
+
+  await pool.query(
+    `INSERT INTO login_logs (user_id, email, method, device_id, device_name, ip)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [userId, email, method, deviceId || null, deviceName || null, ip]
   );
 }
 
@@ -29,12 +57,19 @@ router.post('/register', async (req, res) => {
     const exists = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
     if (exists.rows.length) return res.status(409).json({ error: 'Email already in use' });
 
+    const autoApprove = isAdminEmail(email);
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (email, password, display_name) VALUES ($1, $2, $3) RETURNING *`,
-      [email.toLowerCase(), hash, displayName]
+      `INSERT INTO users (email, password, display_name, approved) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [email.toLowerCase(), hash, displayName, autoApprove]
     );
     const user = result.rows[0];
+    await logLogin(user.id, user.email, 'email', req).catch(() => {});
+
+    if (!user.approved) {
+      return res.status(202).json({ error: 'pending_approval', message: 'Your account is pending admin approval.' });
+    }
+
     res.status(201).json({ token: signToken(user), user: { id: user.id, email: user.email, displayName: user.display_name } });
   } catch (e) {
     console.error('Register error:', e.message);
@@ -56,6 +91,12 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
+    await logLogin(user.id, user.email, 'email', req).catch(() => {});
+
+    if (!user.approved) {
+      return res.status(403).json({ error: 'pending_approval', message: 'Your account is pending admin approval.' });
+    }
+
     res.json({ token: signToken(user), user: { id: user.id, email: user.email, displayName: user.display_name } });
   } catch (e) {
     console.error('Login error:', e.message);
@@ -76,21 +117,26 @@ router.post('/google', async (req, res) => {
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
 
-    // Find or create user
     let result = await pool.query('SELECT * FROM users WHERE google_id = $1 OR email = $2', [googleId, email]);
     let user = result.rows[0];
 
     if (!user) {
+      const autoApprove = isAdminEmail(email);
       const ins = await pool.query(
-        `INSERT INTO users (email, display_name, avatar_url, google_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-        [email, name, picture, googleId]
+        `INSERT INTO users (email, display_name, avatar_url, google_id, approved) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [email, name, picture, googleId, autoApprove]
       );
       user = ins.rows[0];
     } else if (!user.google_id) {
-      // Link google_id to existing email account
       await pool.query('UPDATE users SET google_id = $1, avatar_url = $2 WHERE id = $3', [googleId, picture, user.id]);
       user.google_id = googleId;
       user.avatar_url = picture;
+    }
+
+    await logLogin(user.id, user.email, 'google', req).catch(() => {});
+
+    if (!user.approved) {
+      return res.status(403).json({ error: 'pending_approval', message: 'Your account is pending admin approval.' });
     }
 
     res.json({ token: signToken(user), user: { id: user.id, email: user.email, displayName: user.display_name, avatarUrl: user.avatar_url } });

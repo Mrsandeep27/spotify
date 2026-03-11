@@ -36,6 +36,7 @@
     "socket.io-client": "^4.7.5",
     "zustand": "^4.5.4",
     "react-native-modal": "^13.0.1",
+    "expo-application": "~5.9.1",
     "expo-blur": "~13.0.2",
     "react-native-fast-image": "^8.6.3"
   },
