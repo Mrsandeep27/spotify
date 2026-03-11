@@ -38,7 +38,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ token: signToken(user), user: { id: user.id, email: user.email, displayName: user.display_name } });
   } catch (e) {
     console.error('Register error:', e.message);
-    res.status(500).json({ error: 'Registration failed', detail: e.message });
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
 
