@@ -1,0 +1,13 @@
+# Backend
+backend/node_modules/
+backend/.env
+
+# App
+app/node_modules/
+app/.expo/
+app/dist/
+app/.env
+
+# General
+.DS_Store
+*.log
