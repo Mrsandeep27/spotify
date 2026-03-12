@@ -7,7 +7,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { AuthService } from '../../services/authService';
@@ -26,7 +25,6 @@ export default function LoginScreen() {
 
   const [_request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: '51559246996-vii5dknpjdcgqgk4lsn1lm719vbj4u3f.apps.googleusercontent.com',
-    redirectUri: makeRedirectUri({ useProxy: true }),
   });
 
   React.useEffect(() => {
