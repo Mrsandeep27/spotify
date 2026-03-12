@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'https://backend-production-fbb9.up.railway.app';
+export const API_BASE_URL = 'https://spofity-backend.onrender.com';
 
 export const SOCKET_URL = API_BASE_URL;
 
