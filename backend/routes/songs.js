@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const play = require('play-dl');
 const ytdl = require('@distube/ytdl-core');
 
 // Parse cookie string into array format required by @distube/ytdl-core
@@ -14,9 +13,72 @@ const parsedCookies = process.env.YOUTUBE_COOKIE
 const agent = parsedCookies ? ytdl.createAgent(parsedCookies) : undefined;
 const ytdlOptions = agent ? { agent } : {};
 
-// Pass cookies to play-dl for search (bypasses bot detection)
-if (process.env.YOUTUBE_COOKIE) {
-  play.setToken({ youtube: { cookie: process.env.YOUTUBE_COOKIE } });
+// YouTube Innertube API — works from any IP, same API the browser uses
+const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const INNERTUBE_CONTEXT = {
+  client: {
+    clientName: 'WEB',
+    clientVersion: '2.20241209.01.00',
+    hl: 'en',
+    gl: 'US',
+  },
+};
+
+async function innertubeSearch(query, limit = 20) {
+  const res = await fetch(
+    `https://www.youtube.com/youtubei/v1/search?key=${INNERTUBE_KEY}&prettyPrint=false`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-YouTube-Client-Name': '1',
+        'X-YouTube-Client-Version': '2.20241209.01.00',
+        'Origin': 'https://www.youtube.com',
+        'Referer': 'https://www.youtube.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      },
+      body: JSON.stringify({ query, context: INNERTUBE_CONTEXT }),
+    }
+  );
+
+  if (!res.ok) throw new Error(`Innertube error: ${res.status}`);
+  const data = await res.json();
+
+  const sections =
+    data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
+      ?.sectionListRenderer?.contents || [];
+
+  const songs = [];
+  for (const section of sections) {
+    for (const item of section?.itemSectionRenderer?.contents || []) {
+      const vr = item.videoRenderer;
+      if (!vr?.videoId) continue;
+
+      const durationText = vr.lengthText?.simpleText || '0:00';
+      const parts = durationText.split(':').map(Number);
+      const durationSec =
+        parts.length === 3
+          ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+          : parts[0] * 60 + (parts[1] || 0);
+
+      songs.push({
+        id: vr.videoId,
+        title: vr.title?.runs?.[0]?.text || 'Unknown',
+        artist:
+          vr.ownerText?.runs?.[0]?.text ||
+          vr.shortBylineText?.runs?.[0]?.text ||
+          'Unknown Artist',
+        thumbnail: vr.thumbnail?.thumbnails?.slice(-1)[0]?.url || '',
+        thumbnailSmall: vr.thumbnail?.thumbnails?.[0]?.url || '',
+        duration: durationText,
+        durationMs: durationSec * 1000,
+        url: `https://www.youtube.com/watch?v=${vr.videoId}`,
+      });
+
+      if (songs.length >= limit) return songs;
+    }
+  }
+  return songs;
 }
 
 // Search songs on YouTube
@@ -25,22 +87,7 @@ router.get('/search', async (req, res) => {
     const { q, limit = 20 } = req.query;
     if (!q) return res.status(400).json({ error: 'Query is required' });
 
-    const results = await play.search(q, {
-      source: { youtube: 'video' },
-      limit: Math.max(1, parseInt(limit) || 20),
-    });
-
-    const songs = results.map((video) => ({
-      id: video.id,
-      title: video.title,
-      artist: video.channel?.name || 'Unknown Artist',
-      thumbnail: video.thumbnails?.[video.thumbnails.length - 1]?.url || '',
-      thumbnailSmall: video.thumbnails?.[0]?.url || '',
-      duration: video.durationRaw || '0:00',
-      durationMs: (video.durationInSec || 0) * 1000,
-      url: `https://www.youtube.com/watch?v=${video.id}`,
-    }));
-
+    const songs = await innertubeSearch(q, Math.max(1, parseInt(limit) || 20));
     res.json({ songs });
   } catch (error) {
     console.error('Search error:', error.message);
@@ -88,26 +135,13 @@ router.get('/stream-url/:videoId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    // Try play-dl first (cookies already set via play.setToken)
-    try {
-      const info = await play.video_info(url);
-      const format = info.format?.find((f) => f.mimeType?.includes('audio') && f.url);
-      if (format?.url) {
-        console.log('play-dl stream URL found:', format.mimeType);
-        return res.json({ streamUrl: format.url });
-      }
-    } catch (playdlErr) {
-      console.warn('play-dl stream-url failed, falling back to ytdl:', playdlErr.message);
-    }
-
-    // Fallback: ytdl
     const info = await ytdl.getInfo(url, ytdlOptions);
     let format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
     if (!format?.url) {
       format = ytdl.chooseFormat(info.formats, { filter: (f) => f.hasAudio && f.url });
     }
 
-    console.log('ytdl formats available:', info.formats.length, '| Chosen:', format?.itag, format?.mimeType);
+    console.log('Formats available:', info.formats.length, '| Chosen:', format?.itag, format?.mimeType);
 
     if (!format?.url) return res.status(404).json({ error: 'No audio format found' });
 
@@ -144,28 +178,12 @@ router.get('/info/:videoId', async (req, res) => {
 // Get trending / featured songs
 router.get('/featured', async (req, res) => {
   try {
-    const queries = [
-      'top hits 2024',
-      'trending music 2024',
-      'best songs 2024',
-    ];
+    const queries = ['top hits 2024', 'trending music 2024', 'best songs 2024'];
     const q = queries[Math.floor(Math.random() * queries.length)];
-    const results = await play.search(q, {
-      source: { youtube: 'video' },
-      limit: 10,
-    });
-
-    const songs = results.map((video) => ({
-      id: video.id,
-      title: video.title,
-      artist: video.channel?.name || 'Unknown Artist',
-      thumbnail: video.thumbnails?.[video.thumbnails.length - 1]?.url || '',
-      duration: video.durationRaw || '0:00',
-      durationMs: (video.durationInSec || 0) * 1000,
-    }));
-
+    const songs = await innertubeSearch(q, 10);
     res.json({ songs });
   } catch (error) {
+    console.error('Featured error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
