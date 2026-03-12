@@ -1,4 +1,4 @@
-# Spofity
+# Sandy5
 
 A Spotify-inspired music streaming app for Android. Streams audio from YouTube with no ads, fully self-hosted authentication, group listening sessions, offline downloads, and a volume booster with EQ.
 
@@ -7,10 +7,11 @@ A Spotify-inspired music streaming app for Android. Streams audio from YouTube w
 - **YouTube Audio Streaming** - Search and play any song, powered by YouTube (ad-free)
 - **Self-Hosted Auth** - Email + Google Sign-In via custom JWT backend (no Firebase/Supabase dependency)
 - **Admin Approval System** - New users require admin approval before accessing the app
+- **Device Tracking** - Logs devices and login history for admin monitoring
 - **Group Jam Sessions** - Listen together in real-time with friends using a 6-character room code
 - **Save & Like Songs** - Build your personal library
 - **Offline Downloads** - Download songs for offline playback
-- **Volume Booster + EQ** - Boost volume up to 150% with equalizer presets (Bass Boost, Rock, Pop, etc.)
+- **Volume Booster + EQ** - Boost volume up to 150% with equalizer presets (Bass Boost, Rock, Pop, Vocal, etc.)
 - **Spotify-Like Dark UI** - Clean, familiar dark theme interface
 
 ## Tech Stack
@@ -30,7 +31,7 @@ A Spotify-inspired music streaming app for Android. Streams audio from YouTube w
 ## Project Structure
 
 ```
-Spofity/
+Sandy5/
 ├── backend/                  # Node.js server (deploy to Railway)
 │   ├── server.js             # Express + Socket.io entry point
 │   ├── db/
@@ -42,13 +43,14 @@ Spofity/
 │   │   ├── auth.js           # Register / Login / Google OAuth
 │   │   ├── songs.js          # YouTube search + audio streaming
 │   │   ├── session.js        # Group Jam session management
-│   │   └── admin.js          # Admin user approval endpoints
+│   │   └── admin.js          # Admin user approval + device logs
 │   └── services/
 │       └── socket.js         # Real-time playback sync
 │
 ├── app/                      # React Native (Expo) Android app
 │   ├── App.js
 │   ├── app.json              # Expo config + EAS project ID
+│   ├── assets/               # App icon, splash screen
 │   └── src/
 │       ├── config/
 │       │   └── api.js        # Backend URL + API endpoints
@@ -59,15 +61,15 @@ Spofity/
 │       │   ├── auth/
 │       │   │   ├── LoginScreen.js          # Email + Google login
 │       │   │   └── PendingApprovalScreen.js # Waiting for admin approval
-│       │   ├── HomeScreen.js
-│       │   ├── SearchScreen.js
-│       │   ├── LibraryScreen.js
-│       │   ├── PlayerScreen.js
-│       │   ├── GroupSessionScreen.js
-│       │   └── VolumeBoosterScreen.js
+│       │   ├── HomeScreen.js          # Featured songs + genres
+│       │   ├── SearchScreen.js        # Search with auto-suggest
+│       │   ├── LibraryScreen.js       # Liked songs + downloads
+│       │   ├── PlayerScreen.js        # Full player with controls
+│       │   ├── GroupSessionScreen.js  # Jam session create/join
+│       │   └── VolumeBoosterScreen.js # Volume + EQ controls
 │       ├── components/
-│       │   ├── MiniPlayer.js
-│       │   └── SongCard.js
+│       │   ├── MiniPlayer.js   # Floating mini player
+│       │   └── SongCard.js     # Reusable song list item
 │       ├── services/
 │       │   ├── authService.js     # JWT auth + device tracking
 │       │   ├── audioPlayer.js     # expo-av audio playback
@@ -76,8 +78,6 @@ Spofity/
 │       │   └── useStore.js        # Zustand global state
 │       └── theme/
 │           └── colors.js          # App color palette
-│
-└── SETUP.md                  # Detailed setup instructions
 ```
 
 ## Quick Start
@@ -98,11 +98,6 @@ Set these environment variables in Railway:
 | `GOOGLE_CLIENT_ID` | From Google Cloud Console |
 | `ADMIN_SECRET` | Strong random string for admin API |
 | `ADMIN_EMAILS` | Comma-separated auto-approved emails |
-
-Run the migration once:
-```bash
-node db/migrate.js
-```
 
 ### 2. Configure the App
 
@@ -136,17 +131,13 @@ All admin endpoints require the `x-admin-secret` header.
 | `/api/admin/pending` | GET | List users pending approval |
 | `/api/admin/users/:id/approve` | POST | Approve a user |
 | `/api/admin/users/:id/reject` | POST | Reject a user |
-| `/api/admin/users/:id` | GET | Get user details |
+| `/api/admin/users/:id` | GET | Get user details + devices |
 | `/api/admin/logins` | GET | View login logs |
 
 Example:
 ```bash
 curl -H "x-admin-secret: YOUR_SECRET" https://your-backend.railway.app/api/admin/pending
 ```
-
-## Screenshots
-
-*Coming soon*
 
 ## License
 
