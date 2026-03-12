@@ -4,7 +4,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { BlurView } from 'expo-blur';
+import { Platform } from 'react-native';
+let BlurView;
+try {
+  BlurView = require('expo-blur').BlurView;
+} catch (e) {
+  BlurView = null;
+}
 import { COLORS } from '../theme/colors';
 import useStore from '../store/useStore';
 import { AudioPlayer } from '../services/audioPlayer';
@@ -23,43 +29,49 @@ export default function MiniPlayer() {
       onPress={() => navigation.navigate('Player')}
       style={styles.wrapper}
     >
-      <BlurView intensity={80} tint="dark" style={styles.blur}>
-        {/* Progress bar at top */}
-        <View style={styles.progressBar}>
-          <View style={[styles.progress, { width: `${progress * 100}%` }]} />
-        </View>
-
-        <View style={styles.content}>
-          {/* Thumbnail */}
-          <Image
-            source={{ uri: currentSong.thumbnail }}
-            style={styles.thumbnail}
-          />
-
-          {/* Song info */}
-          <View style={styles.info}>
-            <Text style={styles.title} numberOfLines={1}>{currentSong.title}</Text>
-            <Text style={styles.artist} numberOfLines={1}>{currentSong.artist}</Text>
+      {BlurView && Platform.OS === 'ios' ? (
+        <BlurView intensity={80} tint="dark" style={styles.blur}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progress, { width: `${progress * 100}%` }]} />
           </View>
-
-          {/* Controls */}
-          <View style={styles.controls}>
-            <TouchableOpacity
-              onPress={() => AudioPlayer.togglePlayPause()}
-              style={styles.btn}
-            >
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={24}
-                color={COLORS.textPrimary}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.btn}>
-              <Ionicons name="play-skip-forward" size={24} color={COLORS.textPrimary} />
-            </TouchableOpacity>
+          <View style={styles.content}>
+            <Image source={{ uri: currentSong.thumbnail }} style={styles.thumbnail} />
+            <View style={styles.info}>
+              <Text style={styles.title} numberOfLines={1}>{currentSong.title}</Text>
+              <Text style={styles.artist} numberOfLines={1}>{currentSong.artist}</Text>
+            </View>
+            <View style={styles.controls}>
+              <TouchableOpacity onPress={() => AudioPlayer.togglePlayPause()} style={styles.btn}>
+                <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btn}>
+                <Ionicons name="play-skip-forward" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </BlurView>
+      ) : (
+        <View style={[styles.blur, { backgroundColor: 'rgba(30,30,30,0.95)' }]}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progress, { width: `${progress * 100}%` }]} />
+          </View>
+          <View style={styles.content}>
+            <Image source={{ uri: currentSong.thumbnail }} style={styles.thumbnail} />
+            <View style={styles.info}>
+              <Text style={styles.title} numberOfLines={1}>{currentSong.title}</Text>
+              <Text style={styles.artist} numberOfLines={1}>{currentSong.artist}</Text>
+            </View>
+            <View style={styles.controls}>
+              <TouchableOpacity onPress={() => AudioPlayer.togglePlayPause()} style={styles.btn}>
+                <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btn}>
+                <Ionicons name="play-skip-forward" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </BlurView>
+      )}
     </TouchableOpacity>
   );
 }

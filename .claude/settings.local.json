@@ -46,7 +46,10 @@
       "Bash(curl -s -X POST https://backend-production-fbb9.up.railway.app/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"sandeep@spofity.com\"\",\"\"password\"\":\"\"test1234\"\",\"\"displayName\"\":\"\"Sandeep\"\"}')",
       "WebFetch(domain:expo.dev)",
       "WebFetch(domain:job-logs.eascdn.net)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(cd /c/Users/H/Documents/GitHub/Spofity/app && npm install)",
+      "Bash(cd \"C:/Users/H/Documents/GitHub/Spofity/app\" && npm install)",
+      "Bash(cd \"C:/Users/H/Documents/GitHub/Spofity/app\" && npx eas build --platform android --profile preview)"
     ]
   }
 }

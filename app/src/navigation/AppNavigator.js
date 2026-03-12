@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import * as SplashScreen from 'expo-splash-screen';
 import { AuthService } from '../services/authService';
 import useStore from '../store/useStore';
 import LoginScreen from '../screens/auth/LoginScreen';
@@ -27,13 +28,30 @@ export default function AppNavigator() {
   useEffect(() => {
     hydrate();
 
-    const unsub = AuthService.onAuthStateChange((user) => {
-      setUser(user);
-      setIsLoggedIn(!!user);
+    const timeout = setTimeout(() => {
       setAuthLoading(false);
-    });
+      SplashScreen.hideAsync().catch(() => {});
+    }, 5000);
 
-    return unsub;
+    let unsub = () => {};
+    try {
+      unsub = AuthService.onAuthStateChange((user) => {
+        clearTimeout(timeout);
+        setUser(user);
+        setIsLoggedIn(!!user);
+        setAuthLoading(false);
+        SplashScreen.hideAsync().catch(() => {});
+      });
+    } catch (e) {
+      clearTimeout(timeout);
+      setAuthLoading(false);
+      SplashScreen.hideAsync().catch(() => {});
+    }
+
+    return () => {
+      clearTimeout(timeout);
+      unsub();
+    };
   }, []);
 
   if (authLoading) {

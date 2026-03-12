@@ -6,6 +6,7 @@ import useStore from '../store/useStore';
 
 export default function SongCard({ song, onPress, rightAction, showDuration = false }) {
   const { currentSong, isPlaying, isLiked } = useStore();
+  if (!song) return null;
   const isCurrentSong = currentSong?.id === song.id;
   const liked = isLiked(song.id);
 
