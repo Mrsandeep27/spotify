@@ -25,42 +25,78 @@ const INNERTUBE_CONTEXT = {
 };
 
 async function innertubeStreamUrl(videoId) {
-  // Android client returns direct (non-obfuscated) stream URLs
-  const res = await fetch('https://www.youtube.com/youtubei/v1/player', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-YouTube-Client-Name': '3',
-      'X-YouTube-Client-Version': '19.09.37',
-      'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-    },
-    body: JSON.stringify({
-      videoId,
-      context: {
-        client: {
-          clientName: 'ANDROID',
-          clientVersion: '19.09.37',
-          androidSdkVersion: 30,
-          hl: 'en',
-          gl: 'US',
-        },
+  // Try multiple client contexts — some are blocked, some return signed URLs
+  const clients = [
+    {
+      headers: {
+        'X-YouTube-Client-Name': '3',
+        'X-YouTube-Client-Version': '19.09.37',
+        'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
       },
-    }),
-  });
-
-  if (!res.ok) throw new Error(`Innertube player error: ${res.status}`);
-  const data = await res.json();
-
-  const formats = [
-    ...(data?.streamingData?.adaptiveFormats || []),
-    ...(data?.streamingData?.formats || []),
+      context: {
+        client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, hl: 'en', gl: 'US' },
+      },
+    },
+    {
+      headers: {
+        'X-YouTube-Client-Name': '5',
+        'X-YouTube-Client-Version': '19.09.3',
+        'User-Agent': 'com.google.ios.youtube/19.09.3 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)',
+      },
+      context: {
+        client: { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone16,2', hl: 'en', gl: 'US' },
+      },
+    },
+    {
+      headers: {
+        'X-YouTube-Client-Name': '85',
+        'X-YouTube-Client-Version': '2.0',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      context: {
+        client: { clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', clientVersion: '2.0', hl: 'en', gl: 'US' },
+        thirdParty: { embedUrl: 'https://www.youtube.com/' },
+      },
+    },
   ];
 
-  const audioFormats = formats
-    .filter((f) => f.mimeType?.includes('audio') && f.url)
-    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  for (const { headers, context } of clients) {
+    try {
+      const res = await fetch(
+        `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ videoId, context }),
+        }
+      );
 
-  return audioFormats[0]?.url || null;
+      if (!res.ok) { console.warn(`Innertube ${context.client.clientName} returned ${res.status}`); continue; }
+      const data = await res.json();
+
+      if (data?.playabilityStatus?.status !== 'OK') {
+        console.warn(`Innertube ${context.client.clientName} not OK:`, data?.playabilityStatus?.status);
+        continue;
+      }
+
+      const formats = [
+        ...(data?.streamingData?.adaptiveFormats || []),
+        ...(data?.streamingData?.formats || []),
+      ];
+
+      const audioFormats = formats
+        .filter((f) => f.mimeType?.includes('audio') && f.url)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+      if (audioFormats[0]?.url) {
+        console.log(`Stream URL found via Innertube ${context.client.clientName}`);
+        return audioFormats[0].url;
+      }
+    } catch (e) {
+      console.warn(`Innertube ${context.client?.clientName} error:`, e.message);
+    }
+  }
+  return null;
 }
 
 async function innertubeSearch(query, limit = 20) {
