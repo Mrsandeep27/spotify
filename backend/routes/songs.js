@@ -88,15 +88,26 @@ router.get('/stream-url/:videoId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    const info = await ytdl.getInfo(url, ytdlOptions);
+    // Try play-dl first (cookies already set via play.setToken)
+    try {
+      const info = await play.video_info(url);
+      const format = info.format?.find((f) => f.mimeType?.includes('audio') && f.url);
+      if (format?.url) {
+        console.log('play-dl stream URL found:', format.mimeType);
+        return res.json({ streamUrl: format.url });
+      }
+    } catch (playdlErr) {
+      console.warn('play-dl stream-url failed, falling back to ytdl:', playdlErr.message);
+    }
 
-    // Try audioonly first, fall back to any format with audio
+    // Fallback: ytdl
+    const info = await ytdl.getInfo(url, ytdlOptions);
     let format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
     if (!format?.url) {
       format = ytdl.chooseFormat(info.formats, { filter: (f) => f.hasAudio && f.url });
     }
 
-    console.log('Formats available:', info.formats.length, '| Chosen:', format?.itag, format?.mimeType);
+    console.log('ytdl formats available:', info.formats.length, '| Chosen:', format?.itag, format?.mimeType);
 
     if (!format?.url) return res.status(404).json({ error: 'No audio format found' });
 
