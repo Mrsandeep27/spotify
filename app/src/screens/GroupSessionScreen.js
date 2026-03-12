@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  Alert, FlatList, ActivityIndicator, Share, Clipboard,
+  Alert, FlatList, ActivityIndicator, Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -140,7 +141,7 @@ export default function GroupSessionScreen() {
 
   const copyCode = () => {
     if (!session) return;
-    Clipboard.setString(session.code);
+    Clipboard.setStringAsync(session.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
