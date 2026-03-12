@@ -86,11 +86,20 @@ async function innertubeStreamUrl(videoId) {
         ...(data?.streamingData?.formats || []),
       ];
 
-      // Extract URL — prefer direct url, fall back to parsing signatureCipher
+      // Debug: log first format keys to understand structure
+      if (formats.length > 0) {
+        const sample = formats[0];
+        console.log(`${context.client.clientName} formats[0] keys:`, Object.keys(sample).join(','), '| mimeType:', sample.mimeType?.substring(0, 30));
+      } else {
+        console.warn(`${context.client.clientName}: no formats in streamingData`);
+      }
+
+      // Extract URL — prefer direct url, fall back to parsing signatureCipher/cipher
       const getUrl = (f) => {
         if (f.url) return f.url;
-        if (f.signatureCipher) {
-          const match = f.signatureCipher.match(/url=([^&]+)/);
+        const cipher = f.signatureCipher || f.cipher;
+        if (cipher) {
+          const match = cipher.match(/url=([^&]+)/);
           return match ? decodeURIComponent(match[1]) : null;
         }
         return null;
