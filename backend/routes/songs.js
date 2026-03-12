@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
 
 // Search songs on YouTube
 router.get('/search', async (req, res) => {
@@ -37,43 +38,46 @@ router.get('/stream/:videoId', async (req, res) => {
     const { videoId } = req.params;
     const url = `https://www.youtube.com/watch?v=${videoId}`;
 
-    const stream = await play.stream(url, { quality: 2 });
+    if (!ytdl.validateID(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
 
-    res.setHeader('Content-Type', stream.type === 'opus' ? 'audio/ogg' : 'audio/mpeg');
+    res.setHeader('Content-Type', 'audio/webm');
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Cache-Control', 'no-cache');
 
-    stream.stream.pipe(res);
+    const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
 
-    req.on('close', () => {
-      try { stream.stream.destroy(); } catch (_) {}
+    stream.pipe(res);
+
+    stream.on('error', (err) => {
+      console.error('Stream error:', err.message);
+      if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
     });
+
+    req.on('close', () => stream.destroy());
   } catch (error) {
     console.error('Stream error:', error.message);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Stream failed' });
-    }
+    if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
   }
 });
 
-// Get stream URL (redirect) — used by the app's audio player directly
+// Get stream URL — used by the app's audio player directly
 router.get('/stream-url/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
     const url = `https://www.youtube.com/watch?v=${videoId}`;
 
-    const info = await play.video_info(url);
-    const formats = info.format.filter(
-      (f) => f.mimeType?.includes('audio') && f.url
-    );
-
-    if (!formats.length) {
-      return res.status(404).json({ error: 'No audio format found' });
+    if (!ytdl.validateID(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    // Pick best quality audio format
-    const best = formats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
-    res.json({ streamUrl: best.url });
+    const info = await ytdl.getInfo(url);
+    const format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+
+    if (!format?.url) return res.status(404).json({ error: 'No audio format found' });
+
+    res.json({ streamUrl: format.url });
   } catch (error) {
     console.error('Stream URL error:', error.message);
     res.status(500).json({ error: 'Failed to get stream URL' });
@@ -85,18 +89,20 @@ router.get('/info/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const info = await play.video_info(url);
-    const v = info.video_details;
+
+    const info = await ytdl.getInfo(url);
+    const v = info.videoDetails;
 
     res.json({
-      id: v.id,
+      id: v.videoId,
       title: v.title,
-      artist: v.channel?.name || 'Unknown Artist',
+      artist: v.author?.name || 'Unknown Artist',
       thumbnail: v.thumbnails?.[v.thumbnails.length - 1]?.url || '',
-      duration: v.durationRaw,
-      durationMs: (v.durationInSec || 0) * 1000,
+      duration: v.lengthSeconds ? new Date(v.lengthSeconds * 1000).toISOString().substr(14, 5) : '0:00',
+      durationMs: (parseInt(v.lengthSeconds) || 0) * 1000,
     });
   } catch (error) {
+    console.error('Info error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
