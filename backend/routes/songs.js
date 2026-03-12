@@ -27,6 +27,18 @@ const INNERTUBE_CONTEXT = {
 async function innertubeStreamUrl(videoId) {
   // Try multiple client contexts — some are blocked, some return signed URLs
   const clients = [
+    // Android Music — often returns direct URLs without cipher
+    {
+      headers: {
+        'X-YouTube-Client-Name': '21',
+        'X-YouTube-Client-Version': '5.01.50',
+        'User-Agent': 'com.google.android.apps.youtube.music/5.01.50 (Linux; U; Android 11) gzip',
+      },
+      context: {
+        client: { clientName: 'ANDROID_MUSIC', clientVersion: '5.01.50', androidSdkVersion: 30, hl: 'en', gl: 'US' },
+      },
+    },
+    // Standard Android
     {
       headers: {
         'X-YouTube-Client-Name': '3',
@@ -37,6 +49,7 @@ async function innertubeStreamUrl(videoId) {
         client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, hl: 'en', gl: 'US' },
       },
     },
+    // IOS
     {
       headers: {
         'X-YouTube-Client-Name': '5',
@@ -45,17 +58,6 @@ async function innertubeStreamUrl(videoId) {
       },
       context: {
         client: { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone16,2', hl: 'en', gl: 'US' },
-      },
-    },
-    {
-      headers: {
-        'X-YouTube-Client-Name': '85',
-        'X-YouTube-Client-Version': '2.0',
-        'User-Agent': 'Mozilla/5.0',
-      },
-      context: {
-        client: { clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', clientVersion: '2.0', hl: 'en', gl: 'US' },
-        thirdParty: { embedUrl: 'https://www.youtube.com/' },
       },
     },
   ];
@@ -84,13 +86,24 @@ async function innertubeStreamUrl(videoId) {
         ...(data?.streamingData?.formats || []),
       ];
 
+      // Extract URL — prefer direct url, fall back to parsing signatureCipher
+      const getUrl = (f) => {
+        if (f.url) return f.url;
+        if (f.signatureCipher) {
+          const match = f.signatureCipher.match(/url=([^&]+)/);
+          return match ? decodeURIComponent(match[1]) : null;
+        }
+        return null;
+      };
+
       const audioFormats = formats
-        .filter((f) => f.mimeType?.includes('audio') && f.url)
+        .filter((f) => f.mimeType?.includes('audio') && getUrl(f))
         .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
 
-      if (audioFormats[0]?.url) {
+      const url = audioFormats[0] ? getUrl(audioFormats[0]) : null;
+      if (url) {
         console.log(`Stream URL found via Innertube ${context.client.clientName}`);
-        return audioFormats[0].url;
+        return url;
       }
     } catch (e) {
       console.warn(`Innertube ${context.client?.clientName} error:`, e.message);
