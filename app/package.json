@@ -38,7 +38,7 @@
     "react-native-modal": "^13.0.1",
     "expo-application": "~5.9.1",
     "expo-blur": "~13.0.2",
-    "react-native-fast-image": "^8.6.3"
+    "expo-image": "~1.12.12"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0"
