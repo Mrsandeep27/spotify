@@ -13,6 +13,11 @@ const agent = process.env.YOUTUBE_COOKIE
 
 const ytdlOptions = agent ? { agent } : {};
 
+// Pass cookies to play-dl for search (bypasses bot detection)
+if (process.env.YOUTUBE_COOKIE) {
+  play.setToken({ youtube: { cookie: process.env.YOUTUBE_COOKIE } });
+}
+
 // Search songs on YouTube
 router.get('/search', async (req, res) => {
   try {
