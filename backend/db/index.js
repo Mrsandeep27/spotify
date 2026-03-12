@@ -1,8 +1,10 @@
 const { Pool } = require('pg');
 
+const isRender = process.env.RENDER || process.env.DATABASE_URL?.includes('render.com');
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('render.com') ? { rejectUnauthorized: false } : false,
+  ssl: isRender ? { rejectUnauthorized: false } : false,
 });
 
 pool.on('error', (err) => console.error('DB pool error:', err.message));
