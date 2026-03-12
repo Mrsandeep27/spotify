@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 import { AuthService } from '../../services/authService';
 
-export default function PendingApprovalScreen({ email }) {
+export default function PendingApprovalScreen({ email, onSignOut }) {
   return (
     <LinearGradient colors={['#0a1a3f', '#121212', '#121212']} style={styles.container}>
       <View style={styles.inner}>
@@ -32,7 +32,7 @@ export default function PendingApprovalScreen({ email }) {
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={() => AuthService.signOut()}>
+        <TouchableOpacity style={styles.signOutBtn} onPress={() => { AuthService.signOut(); onSignOut?.(); }}>
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </View>

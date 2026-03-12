@@ -67,7 +67,7 @@ router.post('/register', async (req, res) => {
     await logLogin(user.id, user.email, 'email', req).catch(() => {});
 
     if (!user.approved) {
-      return res.status(202).json({ error: 'pending_approval', message: 'Your account is pending admin approval.' });
+      return res.status(403).json({ error: 'pending_approval', message: 'Your account is pending admin approval.' });
     }
 
     res.status(201).json({ token: signToken(user), user: { id: user.id, email: user.email, displayName: user.display_name } });

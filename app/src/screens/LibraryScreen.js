@@ -62,7 +62,9 @@ export default function LibraryScreen() {
 
       // Get stream URL from backend
       const res = await fetch(ENDPOINTS.streamUrl(song.id));
+      if (!res.ok) throw new Error('Failed to get stream URL');
       const { streamUrl } = await res.json();
+      if (!streamUrl) throw new Error('No stream URL available');
 
       const dl = FileSystem.createDownloadResumable(
         streamUrl, dest, {},

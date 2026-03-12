@@ -70,7 +70,7 @@ export default function LoginScreen() {
   };
 
   if (pendingEmail !== null) {
-    return <PendingApprovalScreen email={pendingEmail} />;
+    return <PendingApprovalScreen email={pendingEmail} onSignOut={() => setPendingEmail(null)} />;
   }
 
   return (

@@ -26,6 +26,7 @@ export default function SearchScreen() {
     if (route.params?.query) {
       handleSearch(route.params.query);
     }
+    return () => clearTimeout(debounceRef.current);
   }, [route.params?.query]);
 
   const handleSearch = async (q = query) => {
@@ -36,6 +37,7 @@ export default function SearchScreen() {
     setSearched(true);
     try {
       const res = await fetch(ENDPOINTS.search(trimmed));
+      if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       setResults(data.songs || []);
     } catch (e) {

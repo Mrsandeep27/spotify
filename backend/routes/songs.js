@@ -10,7 +10,7 @@ router.get('/search', async (req, res) => {
 
     const results = await play.search(q, {
       source: { youtube: 'video' },
-      limit: parseInt(limit),
+      limit: Math.max(1, parseInt(limit) || 20),
     });
 
     const songs = results.map((video) => ({
@@ -27,7 +27,7 @@ router.get('/search', async (req, res) => {
     res.json({ songs });
   } catch (error) {
     console.error('Search error:', error.message);
-    res.status(500).json({ error: 'Search failed', detail: error.message });
+    res.status(500).json({ error: 'Search failed' });
   }
 });
 
@@ -51,7 +51,7 @@ router.get('/stream/:videoId', async (req, res) => {
   } catch (error) {
     console.error('Stream error:', error.message);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Stream failed', detail: error.message });
+      res.status(500).json({ error: 'Stream failed' });
     }
   }
 });
@@ -76,7 +76,7 @@ router.get('/stream-url/:videoId', async (req, res) => {
     res.json({ streamUrl: best.url });
   } catch (error) {
     console.error('Stream URL error:', error.message);
-    res.status(500).json({ error: 'Failed to get stream URL', detail: error.message });
+    res.status(500).json({ error: 'Failed to get stream URL' });
   }
 });
 
@@ -97,7 +97,7 @@ router.get('/info/:videoId', async (req, res) => {
       durationMs: (v.durationInSec || 0) * 1000,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -126,7 +126,7 @@ router.get('/featured', async (req, res) => {
 
     res.json({ songs });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

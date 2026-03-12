@@ -20,6 +20,7 @@ export const AudioPlayer = {
 
       // Get stream URL from backend
       const res = await fetch(ENDPOINTS.streamUrl(song.id));
+      if (!res.ok) throw new Error('Failed to get stream URL');
       const data = await res.json();
 
       if (!data.streamUrl) throw new Error('No stream URL');

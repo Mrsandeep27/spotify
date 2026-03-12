@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   Alert, FlatList, ActivityIndicator, Share,
@@ -61,16 +61,17 @@ export default function GroupSessionScreen() {
       const res = await fetch(ENDPOINTS.createSession, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.uid, displayName: user.displayName || 'Host' }),
+        body: JSON.stringify({ userId: user.id, displayName: user.displayName || 'Host' }),
       });
+      if (!res.ok) throw new Error('Failed to create session');
       const data = await res.json();
-      if (!data.code) throw new Error('Failed to create session');
+      if (!data.code) throw new Error('No session code returned');
 
       setSession(data.session, true);
       setMembers(data.session.members);
 
       // Connect socket and join own room
-      SocketService.joinSession(data.code, user.uid, user.displayName || 'Host');
+      SocketService.joinSession(data.code, user.id, user.displayName || 'Host');
 
       setMode('active');
     } catch (e) {
@@ -98,7 +99,7 @@ export default function GroupSessionScreen() {
 
       // Connect socket
       SocketService.connect();
-      SocketService.joinSession(code, user.uid, user.displayName || 'Listener');
+      SocketService.joinSession(code, user.id, user.displayName || 'Listener');
 
       // Listen for initial state
       SocketService.on('session_joined', ({ session: s, currentSong: song, isPlaying: playing, position: pos }) => {

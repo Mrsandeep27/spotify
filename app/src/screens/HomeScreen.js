@@ -39,6 +39,7 @@ export default function HomeScreen() {
   const fetchFeatured = useCallback(async () => {
     try {
       const res = await fetch(ENDPOINTS.featured);
+      if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setFeatured(data.songs || []);
     } catch (e) {
@@ -78,8 +79,8 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('VolumeBooster')}>
               <Ionicons name="volume-high" size={22} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings')}>
-              <Ionicons name="settings-outline" size={22} color={COLORS.textPrimary} />
+            <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('GroupSession')}>
+              <Ionicons name="people-outline" size={22} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
