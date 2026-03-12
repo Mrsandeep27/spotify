@@ -3,6 +3,16 @@ const router = express.Router();
 const play = require('play-dl');
 const ytdl = require('@distube/ytdl-core');
 
+// Build ytdl agent with cookies if provided (bypasses YouTube bot detection on server IPs)
+const agent = process.env.YOUTUBE_COOKIE
+  ? ytdl.createAgent(undefined, {
+      rejectUnauthorized: false,
+      headers: { cookie: process.env.YOUTUBE_COOKIE },
+    })
+  : undefined;
+
+const ytdlOptions = agent ? { agent } : {};
+
 // Search songs on YouTube
 router.get('/search', async (req, res) => {
   try {
@@ -46,7 +56,7 @@ router.get('/stream/:videoId', async (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Cache-Control', 'no-cache');
 
-    const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
+    const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio', ...ytdlOptions });
 
     stream.pipe(res);
 
@@ -72,8 +82,15 @@ router.get('/stream-url/:videoId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    const info = await ytdl.getInfo(url);
-    const format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+    const info = await ytdl.getInfo(url, ytdlOptions);
+
+    // Try audioonly first, fall back to any format with audio
+    let format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+    if (!format?.url) {
+      format = ytdl.chooseFormat(info.formats, { filter: (f) => f.hasAudio && f.url });
+    }
+
+    console.log('Formats available:', info.formats.length, '| Chosen:', format?.itag, format?.mimeType);
 
     if (!format?.url) return res.status(404).json({ error: 'No audio format found' });
 
@@ -90,7 +107,7 @@ router.get('/info/:videoId', async (req, res) => {
     const { videoId } = req.params;
     const url = `https://www.youtube.com/watch?v=${videoId}`;
 
-    const info = await ytdl.getInfo(url);
+    const info = await ytdl.getInfo(url, ytdlOptions);
     const v = info.videoDetails;
 
     res.json({
