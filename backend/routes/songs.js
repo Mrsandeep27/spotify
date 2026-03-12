@@ -24,6 +24,45 @@ const INNERTUBE_CONTEXT = {
   },
 };
 
+async function innertubeStreamUrl(videoId) {
+  // Android client returns direct (non-obfuscated) stream URLs
+  const res = await fetch('https://www.youtube.com/youtubei/v1/player', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-YouTube-Client-Name': '3',
+      'X-YouTube-Client-Version': '19.09.37',
+      'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+    },
+    body: JSON.stringify({
+      videoId,
+      context: {
+        client: {
+          clientName: 'ANDROID',
+          clientVersion: '19.09.37',
+          androidSdkVersion: 30,
+          hl: 'en',
+          gl: 'US',
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Innertube player error: ${res.status}`);
+  const data = await res.json();
+
+  const formats = [
+    ...(data?.streamingData?.adaptiveFormats || []),
+    ...(data?.streamingData?.formats || []),
+  ];
+
+  const audioFormats = formats
+    .filter((f) => f.mimeType?.includes('audio') && f.url)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+  return audioFormats[0]?.url || null;
+}
+
 async function innertubeSearch(query, limit = 20) {
   const res = await fetch(
     `https://www.youtube.com/youtubei/v1/search?key=${INNERTUBE_KEY}&prettyPrint=false`,
@@ -129,23 +168,17 @@ router.get('/stream/:videoId', async (req, res) => {
 router.get('/stream-url/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
-    const url = `https://www.youtube.com/watch?v=${videoId}`;
 
     if (!ytdl.validateID(videoId)) {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    const info = await ytdl.getInfo(url, ytdlOptions);
-    let format = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
-    if (!format?.url) {
-      format = ytdl.chooseFormat(info.formats, { filter: (f) => f.hasAudio && f.url });
-    }
+    // Use Innertube Android client (returns direct URLs, no rate-limit issues)
+    const streamUrl = await innertubeStreamUrl(videoId);
+    if (!streamUrl) return res.status(404).json({ error: 'No audio format found' });
 
-    console.log('Formats available:', info.formats.length, '| Chosen:', format?.itag, format?.mimeType);
-
-    if (!format?.url) return res.status(404).json({ error: 'No audio format found' });
-
-    res.json({ streamUrl: format.url });
+    console.log('Stream URL found via Innertube for', videoId);
+    res.json({ streamUrl });
   } catch (error) {
     console.error('Stream URL error:', error.message);
     res.status(500).json({ error: 'Failed to get stream URL' });
