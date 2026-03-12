@@ -83,7 +83,7 @@ export default function LoginScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Ionicons name="musical-notes" size={60} color={COLORS.primary} />
-            <Text style={styles.logoText}>Spofity</Text>
+            <Text style={styles.logoText}>Sandy5</Text>
             <Text style={styles.tagline}>Music for everyone</Text>
           </View>
 
