@@ -3,14 +3,15 @@ const router = express.Router();
 const play = require('play-dl');
 const ytdl = require('@distube/ytdl-core');
 
-// Build ytdl agent with cookies if provided (bypasses YouTube bot detection on server IPs)
-const agent = process.env.YOUTUBE_COOKIE
-  ? ytdl.createAgent(undefined, {
-      rejectUnauthorized: false,
-      headers: { cookie: process.env.YOUTUBE_COOKIE },
-    })
+// Parse cookie string into array format required by @distube/ytdl-core
+const parsedCookies = process.env.YOUTUBE_COOKIE
+  ? process.env.YOUTUBE_COOKIE.split(';').map((c) => {
+      const [name, ...rest] = c.trim().split('=');
+      return { name: name.trim(), value: rest.join('=').trim() };
+    }).filter((c) => c.name)
   : undefined;
 
+const agent = parsedCookies ? ytdl.createAgent(parsedCookies) : undefined;
 const ytdlOptions = agent ? { agent } : {};
 
 // Pass cookies to play-dl for search (bypasses bot detection)

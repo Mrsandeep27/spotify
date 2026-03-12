@@ -51,7 +51,7 @@ export default function SearchScreen() {
     setQuery(text);
     clearTimeout(debounceRef.current);
     if (text.length > 2) {
-      debounceRef.current = setTimeout(() => handleSearch(text), 600);
+      debounceRef.current = setTimeout(() => handleSearch(text), 1000);
     }
   };
 
