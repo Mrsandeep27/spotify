@@ -43,7 +43,10 @@
       "Bash(curl -s -X POST https://backend-production-fbb9.up.railway.app/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"test3@spofity.com\"\",\"\"password\"\":\"\"test1234\"\",\"\"displayName\"\":\"\"Test User\"\"}')",
       "Bash(curl -s -X POST https://backboard.railway.com/graphql/v2 -H \"Authorization: Bearer 9739b535-b5df-4eeb-815e-c0971aa4d2ef\" -H \"Content-Type: application/json\" -d '{\"\"query\"\":\"\"{ serviceInstance\\(serviceId: \\\\\"\"b6af452d-d5c7-4132-ab6e-2e5fac1131c7\\\\\"\", environmentId: \\\\\"\"fac91356-818c-42c9-bd07-f10ab3cf4193\\\\\"\"\\) { startCommand } }\"\"}')",
       "Bash(curl -s -X POST https://backboard.railway.com/graphql/v2 -H \"Authorization: Bearer 9739b535-b5df-4eeb-815e-c0971aa4d2ef\" -H \"Content-Type: application/json\" -d '{\"\"query\"\":\"\"mutation { serviceInstanceDeployV2\\(serviceId: \\\\\"\"b6af452d-d5c7-4132-ab6e-2e5fac1131c7\\\\\"\", environmentId: \\\\\"\"fac91356-818c-42c9-bd07-f10ab3cf4193\\\\\"\", commitSha: \\\\\"\"9a5a2426dc4f88f8e8f2e4b90d0f26ec1c3765e4\\\\\"\"\\) }\"\"}')",
-      "Bash(curl -s -X POST https://backend-production-fbb9.up.railway.app/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"sandeep@spofity.com\"\",\"\"password\"\":\"\"test1234\"\",\"\"displayName\"\":\"\"Sandeep\"\"}')"
+      "Bash(curl -s -X POST https://backend-production-fbb9.up.railway.app/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"sandeep@spofity.com\"\",\"\"password\"\":\"\"test1234\"\",\"\"displayName\"\":\"\"Sandeep\"\"}')",
+      "WebFetch(domain:expo.dev)",
+      "WebFetch(domain:job-logs.eascdn.net)",
+      "Bash(node -e \":*)"
     ]
   }
 }
