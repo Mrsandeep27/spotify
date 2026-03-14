@@ -1,124 +1,41 @@
 const express = require('express');
 const router = express.Router();
-const ytdl = require('@distube/ytdl-core');
+const path = require('path');
+const { execFile } = require('child_process');
 
-// Parse cookie string into array format required by @distube/ytdl-core
-const parsedCookies = process.env.YOUTUBE_COOKIE
-  ? process.env.YOUTUBE_COOKIE.split(';').map((c) => {
-      const [name, ...rest] = c.trim().split('=');
-      return { name: name.trim(), value: rest.join('=').trim() };
-    }).filter((c) => c.name)
-  : undefined;
+// Path to yt-dlp binary (downloaded by postinstall on Linux/Render)
+const YTDLP = path.join(__dirname, '..', 'yt-dlp');
 
-const agent = parsedCookies ? ytdl.createAgent(parsedCookies) : undefined;
-const ytdlOptions = agent ? { agent } : {};
-
-// YouTube Innertube API — works from any IP, same API the browser uses
+// YouTube Innertube API — for search
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const INNERTUBE_CONTEXT = {
-  client: {
-    clientName: 'WEB',
-    clientVersion: '2.20241209.01.00',
-    hl: 'en',
-    gl: 'US',
-  },
+  client: { clientName: 'WEB', clientVersion: '2.20241209.01.00', hl: 'en', gl: 'US' },
 };
 
-async function innertubeStreamUrl(videoId) {
-  // Try multiple client contexts — some are blocked, some return signed URLs
-  const clients = [
-    // Android Music — often returns direct URLs without cipher
-    {
-      headers: {
-        'X-YouTube-Client-Name': '21',
-        'X-YouTube-Client-Version': '5.01.50',
-        'User-Agent': 'com.google.android.apps.youtube.music/5.01.50 (Linux; U; Android 11) gzip',
-      },
-      context: {
-        client: { clientName: 'ANDROID_MUSIC', clientVersion: '5.01.50', androidSdkVersion: 30, hl: 'en', gl: 'US' },
-      },
-    },
-    // Standard Android
-    {
-      headers: {
-        'X-YouTube-Client-Name': '3',
-        'X-YouTube-Client-Version': '19.09.37',
-        'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-      },
-      context: {
-        client: { clientName: 'ANDROID', clientVersion: '19.09.37', androidSdkVersion: 30, hl: 'en', gl: 'US' },
-      },
-    },
-    // IOS
-    {
-      headers: {
-        'X-YouTube-Client-Name': '5',
-        'X-YouTube-Client-Version': '19.09.3',
-        'User-Agent': 'com.google.ios.youtube/19.09.3 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)',
-      },
-      context: {
-        client: { clientName: 'IOS', clientVersion: '19.09.3', deviceModel: 'iPhone16,2', hl: 'en', gl: 'US' },
-      },
-    },
-  ];
+// Run yt-dlp to get the best audio stream URL
+function ytdlpGetUrl(videoId) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '--no-warnings',
+      '--no-playlist',
+      '-f', 'bestaudio/best',
+      '--get-url',
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ];
 
-  for (const { headers, context } of clients) {
-    try {
-      const res = await fetch(
-        `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
-          body: JSON.stringify({ videoId, context }),
-        }
-      );
-
-      if (!res.ok) { console.warn(`Innertube ${context.client.clientName} returned ${res.status}`); continue; }
-      const data = await res.json();
-
-      if (data?.playabilityStatus?.status !== 'OK') {
-        console.warn(`Innertube ${context.client.clientName} not OK:`, data?.playabilityStatus?.status);
-        continue;
-      }
-
-      const formats = [
-        ...(data?.streamingData?.adaptiveFormats || []),
-        ...(data?.streamingData?.formats || []),
-      ];
-
-      // Debug: log first format keys to understand structure
-      if (formats.length > 0) {
-        const sample = formats[0];
-        console.log(`${context.client.clientName} formats[0] keys:`, Object.keys(sample).join(','), '| mimeType:', sample.mimeType?.substring(0, 30));
-      } else {
-        console.warn(`${context.client.clientName}: no formats in streamingData`);
-      }
-
-      // Extract URL — prefer direct url, fall back to parsing signatureCipher/cipher
-      const getUrl = (f) => {
-        if (f.url) return f.url;
-        const cipher = f.signatureCipher || f.cipher;
-        if (cipher) {
-          const match = cipher.match(/url=([^&]+)/);
-          return match ? decodeURIComponent(match[1]) : null;
-        }
-        return null;
-      };
-
-      const audioFormats = formats
-        .filter((f) => f.mimeType?.includes('audio') && getUrl(f))
-        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-
-      const url = audioFormats[0] ? getUrl(audioFormats[0]) : null;
-      if (url) {
-        console.log(`Stream URL found via Innertube ${context.client.clientName}`);
-        return url;
-      }
-    } catch (e) {
-      console.warn(`Innertube ${context.client?.clientName} error:`, e.message);
+    // Pass cookies if available
+    if (process.env.YOUTUBE_COOKIE) {
+      // Write cookie header format yt-dlp understands via --add-header
+      args.push('--add-header', `Cookie:${process.env.YOUTUBE_COOKIE}`);
     }
-  }
-  return null;
+
+    execFile(YTDLP, args, { timeout: 30000 }, (err, stdout, stderr) => {
+      if (err) return reject(new Error(stderr || err.message));
+      const url = stdout.trim().split('\n')[0];
+      if (!url) return reject(new Error('No URL returned by yt-dlp'));
+      resolve(url);
+    });
+  });
 }
 
 async function innertubeSearch(query, limit = 20) {
@@ -178,6 +95,11 @@ async function innertubeSearch(query, limit = 20) {
   return songs;
 }
 
+// Validate YouTube video ID
+function isValidVideoId(id) {
+  return /^[a-zA-Z0-9_-]{11}$/.test(id);
+}
+
 // Search songs on YouTube
 router.get('/search', async (req, res) => {
   try {
@@ -192,50 +114,16 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// Stream audio — pipe directly to client
-router.get('/stream/:videoId', async (req, res) => {
-  try {
-    const { videoId } = req.params;
-    const url = `https://www.youtube.com/watch?v=${videoId}`;
-
-    if (!ytdl.validateID(videoId)) {
-      return res.status(400).json({ error: 'Invalid video ID' });
-    }
-
-    res.setHeader('Content-Type', 'audio/webm');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Cache-Control', 'no-cache');
-
-    const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio', ...ytdlOptions });
-
-    stream.pipe(res);
-
-    stream.on('error', (err) => {
-      console.error('Stream error:', err.message);
-      if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
-    });
-
-    req.on('close', () => stream.destroy());
-  } catch (error) {
-    console.error('Stream error:', error.message);
-    if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
-  }
-});
-
-// Get stream URL — used by the app's audio player directly
+// Get stream URL — used by the app's audio player
 router.get('/stream-url/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
-
-    if (!ytdl.validateID(videoId)) {
+    if (!isValidVideoId(videoId)) {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
-    // Use Innertube Android client (returns direct URLs, no rate-limit issues)
-    const streamUrl = await innertubeStreamUrl(videoId);
-    if (!streamUrl) return res.status(404).json({ error: 'No audio format found' });
-
-    console.log('Stream URL found via Innertube for', videoId);
+    const streamUrl = await ytdlpGetUrl(videoId);
+    console.log('Stream URL found via yt-dlp for', videoId);
     res.json({ streamUrl });
   } catch (error) {
     console.error('Stream URL error:', error.message);
@@ -243,23 +131,34 @@ router.get('/stream-url/:videoId', async (req, res) => {
   }
 });
 
+// Stream audio — pipe directly (fallback endpoint)
+router.get('/stream/:videoId', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    if (!isValidVideoId(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
+
+    // Get URL via yt-dlp then redirect to it
+    const streamUrl = await ytdlpGetUrl(videoId);
+    res.redirect(streamUrl);
+  } catch (error) {
+    console.error('Stream error:', error.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
+  }
+});
+
 // Get song metadata
 router.get('/info/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
-    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    if (!isValidVideoId(videoId)) {
+      return res.status(400).json({ error: 'Invalid video ID' });
+    }
 
-    const info = await ytdl.getInfo(url, ytdlOptions);
-    const v = info.videoDetails;
-
-    res.json({
-      id: v.videoId,
-      title: v.title,
-      artist: v.author?.name || 'Unknown Artist',
-      thumbnail: v.thumbnails?.[v.thumbnails.length - 1]?.url || '',
-      duration: v.lengthSeconds ? new Date(v.lengthSeconds * 1000).toISOString().substr(14, 5) : '0:00',
-      durationMs: (parseInt(v.lengthSeconds) || 0) * 1000,
-    });
+    const results = await innertubeSearch(videoId, 1);
+    if (!results.length) return res.status(404).json({ error: 'Not found' });
+    res.json(results[0]);
   } catch (error) {
     console.error('Info error:', error.message);
     res.status(500).json({ error: 'Internal server error' });
