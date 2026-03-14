@@ -7,6 +7,30 @@ import { API_BASE_URL } from '../config/api';
 const TOKEN_KEY = 'spofity_token';
 let _authListeners = [];
 
+// Fetch with timeout + retry for Render cold-start delays
+async function fetchWithRetry(url, options = {}, timeoutMs = 30000, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      const isLast = attempt === retries;
+      if (isLast) {
+        if (err.name === 'AbortError') {
+          throw new Error('Server is taking too long to respond. It may be starting up — please try again in a moment.');
+        }
+        throw new Error('Cannot connect to server. Please check your internet connection and try again.');
+      }
+      // Wait 3s before retry
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+}
+
 async function _notify(user) {
   _authListeners.forEach((cb) => cb(user));
 }
@@ -72,7 +96,7 @@ export const AuthService = {
   // Email register
   async signUpWithEmail(email, password, displayName) {
     const device = await getDeviceInfo();
-    const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const res = await fetchWithRetry(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, displayName, ...device }),
@@ -93,7 +117,7 @@ export const AuthService = {
   // Email login
   async signInWithEmail(email, password) {
     const device = await getDeviceInfo();
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const res = await fetchWithRetry(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, ...device }),
@@ -114,7 +138,7 @@ export const AuthService = {
   // Google sign in — pass idToken from expo-auth-session
   async signInWithGoogle(idToken) {
     const device = await getDeviceInfo();
-    const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
+    const res = await fetchWithRetry(`${API_BASE_URL}/api/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, ...device }),

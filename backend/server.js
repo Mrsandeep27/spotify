@@ -85,10 +85,19 @@ async function runMigration(retries = 10, delay = 3000) {
 
 const PORT = process.env.PORT || 3000;
 
+// Keep-alive: ping self every 14 min so Render free tier doesn't sleep
+function startKeepAlive() {
+  const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+  setInterval(() => {
+    fetch(`${url}/health`).catch(() => {});
+  }, 14 * 60 * 1000);
+}
+
 runMigration()
   .then(() => {
     server.listen(PORT, () => {
       console.log(`🎵 Spofity backend running on port ${PORT}`);
+      startKeepAlive();
     });
   })
   .catch((e) => {
