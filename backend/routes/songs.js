@@ -10,15 +10,28 @@ const YTDLP = path.join(__dirname, '..', 'yt-dlp');
 // Write YouTube cookies to Netscape cookie file for yt-dlp
 const COOKIE_FILE = path.join(__dirname, '..', '.cookies.txt');
 if (process.env.YOUTUBE_COOKIE) {
+  // Auth cookies like SID, HSID, __Secure-* must be on .google.com too
+  const googleCookies = ['SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO',
+    '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PAPISID', '__Secure-3PAPISID',
+    '__Secure-1PSIDTS', '__Secure-3PSIDTS', '__Secure-1PSIDCC', '__Secure-3PSIDCC',
+    'NID', 'PREF', 'SIDCC'];
   const lines = ['# Netscape HTTP Cookie File'];
+  const expiry = Math.floor(Date.now() / 1000) + 86400 * 365; // 1 year from now
   process.env.YOUTUBE_COOKIE.split(';').forEach((c) => {
     const [name, ...rest] = c.trim().split('=');
-    if (name) {
-      lines.push(`.youtube.com\tTRUE\t/\tTRUE\t0\t${name.trim()}\t${rest.join('=').trim()}`);
+    if (!name) return;
+    const n = name.trim();
+    const v = rest.join('=').trim();
+    const secure = n.startsWith('__Secure') ? 'TRUE' : 'FALSE';
+    // Write to .youtube.com
+    lines.push(`.youtube.com\tTRUE\t/\t${secure}\t${expiry}\t${n}\t${v}`);
+    // Also write auth cookies to .google.com
+    if (googleCookies.includes(n)) {
+      lines.push(`.google.com\tTRUE\t/\t${secure}\t${expiry}\t${n}\t${v}`);
     }
   });
   fs.writeFileSync(COOKIE_FILE, lines.join('\n') + '\n');
-  console.log('Wrote YouTube cookies to', COOKIE_FILE);
+  console.log('Wrote', lines.length - 1, 'cookie entries to', COOKIE_FILE);
 }
 
 // YouTube Innertube API — for search
