@@ -33,7 +33,7 @@ function ytdlpGetUrl(videoId) {
     const args = [
       '--no-warnings',
       '--no-playlist',
-      '-f', 'bestaudio/best',
+      '-f', 'bestaudio*',
       '--get-url',
       `https://www.youtube.com/watch?v=${videoId}`,
     ];
