@@ -1,10 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const fs = require('fs');
 const { execFile } = require('child_process');
 
 // Path to yt-dlp binary (downloaded by postinstall on Linux/Render)
 const YTDLP = path.join(__dirname, '..', 'yt-dlp');
+
+// Write YouTube cookies to Netscape cookie file for yt-dlp
+const COOKIE_FILE = path.join(__dirname, '..', '.cookies.txt');
+if (process.env.YOUTUBE_COOKIE) {
+  const lines = ['# Netscape HTTP Cookie File'];
+  process.env.YOUTUBE_COOKIE.split(';').forEach((c) => {
+    const [name, ...rest] = c.trim().split('=');
+    if (name) {
+      lines.push(`.youtube.com\tTRUE\t/\tTRUE\t0\t${name.trim()}\t${rest.join('=').trim()}`);
+    }
+  });
+  fs.writeFileSync(COOKIE_FILE, lines.join('\n') + '\n');
+  console.log('Wrote YouTube cookies to', COOKIE_FILE);
+}
 
 // YouTube Innertube API — for search
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
@@ -23,10 +38,9 @@ function ytdlpGetUrl(videoId) {
       `https://www.youtube.com/watch?v=${videoId}`,
     ];
 
-    // Pass cookies if available
-    if (process.env.YOUTUBE_COOKIE) {
-      // Write cookie header format yt-dlp understands via --add-header
-      args.push('--add-header', `Cookie:${process.env.YOUTUBE_COOKIE}`);
+    // Use cookie file if it exists
+    if (fs.existsSync(COOKIE_FILE)) {
+      args.push('--cookies', COOKIE_FILE);
     }
 
     execFile(YTDLP, args, { timeout: 30000 }, (err, stdout, stderr) => {

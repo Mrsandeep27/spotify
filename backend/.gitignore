@@ -2,3 +2,4 @@ node_modules/
 .env
 yt-dlp
 yt-dlp.exe
+.cookies.txt
