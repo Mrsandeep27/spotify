@@ -33,7 +33,9 @@ function ytdlpGetUrl(videoId) {
     const args = [
       '--no-warnings',
       '--no-playlist',
+      '-f', 'ba',
       '--get-url',
+      '--extractor-args', 'youtube:player_client=web',
       `https://www.youtube.com/watch?v=${videoId}`,
     ];
 
@@ -44,14 +46,7 @@ function ytdlpGetUrl(videoId) {
 
     execFile(YTDLP, args, { timeout: 30000 }, (err, stdout, stderr) => {
       if (err) {
-        // On format error, log available formats for debugging
-        if (stderr && stderr.includes('not available')) {
-          const listArgs = ['--no-warnings', '--list-formats', `https://www.youtube.com/watch?v=${videoId}`];
-          if (fs.existsSync(COOKIE_FILE)) listArgs.push('--cookies', COOKIE_FILE);
-          execFile(YTDLP, listArgs, { timeout: 30000 }, (_, out, lerr) => {
-            console.error('Available formats:', out || lerr || 'none');
-          });
-        }
+        console.error('yt-dlp stderr:', stderr);
         return reject(new Error(stderr || err.message));
       }
       const url = stdout.trim().split('\n')[0];
