@@ -1,13 +1,27 @@
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const pool = require('../db/index');
 
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+
 function requireAdmin(req, res, next) {
+  // Option 1: x-admin-secret header (for external tools / scripts)
   const secret = req.headers['x-admin-secret'];
-  if (!secret || secret !== process.env.ADMIN_SECRET) {
-    return res.status(403).json({ error: 'Forbidden' });
+  if (secret && secret === process.env.ADMIN_SECRET) return next();
+
+  // Option 2: JWT Bearer token from an admin email (for in-app admin panel)
+  const auth = req.headers['authorization'];
+  if (auth && auth.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(auth.slice(7), process.env.JWT_SECRET);
+      if (decoded.email && ADMIN_EMAILS.includes(decoded.email.toLowerCase())) {
+        return next();
+      }
+    } catch (_) {}
   }
-  next();
+
+  return res.status(403).json({ error: 'Forbidden' });
 }
 
 // GET /api/admin/users — all users

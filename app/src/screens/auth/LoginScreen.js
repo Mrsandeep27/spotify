@@ -24,7 +24,8 @@ export default function LoginScreen() {
   const [pendingEmail, setPendingEmail] = useState(null); // non-null = show pending screen
 
   const [_request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: '51559246996-vii5dknpjdcgqgk4lsn1lm719vbj4u3f.apps.googleusercontent.com',
+    androidClientId: '18421210900-u1ko20ujhrnod8aeo7ct05smp2al6l54.apps.googleusercontent.com',
+    webClientId: '51559246996-vii5dknpjdcgqgk4lsn1lm719vbj4u3f.apps.googleusercontent.com',
   });
 
   React.useEffect(() => {

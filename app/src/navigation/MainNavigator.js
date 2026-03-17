@@ -5,7 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../screens/HomeScreen';
 import SearchScreen from '../screens/SearchScreen';
 import LibraryScreen from '../screens/LibraryScreen';
+import AdminPanelScreen from '../screens/admin/AdminPanelScreen';
 import MiniPlayer from '../components/MiniPlayer';
+import useStore from '../store/useStore';
 import { COLORS } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -23,6 +25,9 @@ function TabBarIcon({ name, focused }) {
 }
 
 function MainLayout() {
+  const user = useStore((s) => s.user);
+  const isAdmin = user?.isAdmin === true;
+
   return (
     <View style={{ flex: 1 }}>
       <Tab.Navigator
@@ -57,6 +62,16 @@ function MainLayout() {
             tabBarIcon: ({ focused }) => <TabBarIcon name="library" focused={focused} />,
           }}
         />
+        {isAdmin && (
+          <Tab.Screen
+            name="Admin"
+            component={AdminPanelScreen}
+            options={{
+              tabBarLabel: 'Admin',
+              tabBarIcon: ({ focused }) => <TabBarIcon name="shield-checkmark" focused={focused} />,
+            }}
+          />
+        )}
       </Tab.Navigator>
       <MiniPlayer />
     </View>

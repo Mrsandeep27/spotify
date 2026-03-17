@@ -1,5 +1,5 @@
 import { Audio } from 'expo-av';
-import { ENDPOINTS } from '../config/api';
+import { getStreamUrl } from './youtubeExtractor';
 
 let soundObject = null;
 let onStatusUpdateCallback = null;
@@ -18,15 +18,11 @@ export const AudioPlayer = {
         playThroughEarpieceAndroid: false,
       });
 
-      // Get stream URL from backend
-      const res = await fetch(ENDPOINTS.streamUrl(song.id));
-      if (!res.ok) throw new Error('Failed to get stream URL');
-      const data = await res.json();
-
-      if (!data.streamUrl) throw new Error('No stream URL');
+      // Extract stream URL client-side (phone's residential IP isn't blocked by YouTube)
+      const streamUri = song.localUri || (await getStreamUrl(song.id));
 
       const { sound } = await Audio.Sound.createAsync(
-        { uri: data.streamUrl },
+        { uri: streamUri },
         { shouldPlay: true, progressUpdateIntervalMillis: 500 },
         (status) => {
           if (onStatusUpdateCallback) onStatusUpdateCallback(status);
@@ -64,9 +60,6 @@ export const AudioPlayer = {
   },
 
   async setVolume(volume) {
-    // expo-av supports volume 0.0 to 1.0
-    // For "boost", we clamp to 1.0 at the expo-av level
-    // but allow the UI to show 0-200%
     const clampedVolume = Math.min(Math.max(volume, 0), 1.0);
     if (soundObject) await soundObject.setVolumeAsync(clampedVolume);
   },

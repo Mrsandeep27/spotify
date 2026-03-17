@@ -17,7 +17,13 @@ function isAdminEmail(email) {
 
 function signToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, displayName: user.display_name, avatarUrl: user.avatar_url },
+    {
+      id: user.id,
+      email: user.email,
+      displayName: user.display_name,
+      avatarUrl: user.avatar_url,
+      isAdmin: isAdminEmail(user.email),
+    },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );

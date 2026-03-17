@@ -1,73 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
-const { execFile } = require('child_process');
 
-// Path to yt-dlp binary (downloaded by postinstall on Linux/Render)
-const YTDLP = path.join(__dirname, '..', 'yt-dlp');
-
-// Write YouTube cookies to Netscape cookie file for yt-dlp
-const COOKIE_FILE = path.join(__dirname, '..', '.cookies.txt');
-if (process.env.YOUTUBE_COOKIE) {
-  // Auth cookies like SID, HSID, __Secure-* must be on .google.com too
-  const googleCookies = ['SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO',
-    '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PAPISID', '__Secure-3PAPISID',
-    '__Secure-1PSIDTS', '__Secure-3PSIDTS', '__Secure-1PSIDCC', '__Secure-3PSIDCC',
-    'NID', 'PREF', 'SIDCC'];
-  const lines = ['# Netscape HTTP Cookie File'];
-  const expiry = Math.floor(Date.now() / 1000) + 86400 * 365; // 1 year from now
-  process.env.YOUTUBE_COOKIE.split(';').forEach((c) => {
-    const [name, ...rest] = c.trim().split('=');
-    if (!name) return;
-    const n = name.trim();
-    const v = rest.join('=').trim();
-    const secure = n.startsWith('__Secure') ? 'TRUE' : 'FALSE';
-    // Write to .youtube.com
-    lines.push(`.youtube.com\tTRUE\t/\t${secure}\t${expiry}\t${n}\t${v}`);
-    // Also write auth cookies to .google.com
-    if (googleCookies.includes(n)) {
-      lines.push(`.google.com\tTRUE\t/\t${secure}\t${expiry}\t${n}\t${v}`);
-    }
-  });
-  fs.writeFileSync(COOKIE_FILE, lines.join('\n') + '\n');
-  console.log('Wrote', lines.length - 1, 'cookie entries to', COOKIE_FILE);
-}
-
-// YouTube Innertube API — for search
+// YouTube Innertube API — for search (works from cloud IPs)
 const INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 const INNERTUBE_CONTEXT = {
   client: { clientName: 'WEB', clientVersion: '2.20241209.01.00', hl: 'en', gl: 'US' },
 };
-
-// Run yt-dlp to get the best audio stream URL
-function ytdlpGetUrl(videoId) {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '--no-warnings',
-      '--no-playlist',
-      '-f', 'ba',
-      '--get-url',
-      '--extractor-args', 'youtube:player_client=web',
-      `https://www.youtube.com/watch?v=${videoId}`,
-    ];
-
-    // Use cookie file if it exists
-    if (fs.existsSync(COOKIE_FILE)) {
-      args.push('--cookies', COOKIE_FILE);
-    }
-
-    execFile(YTDLP, args, { timeout: 30000 }, (err, stdout, stderr) => {
-      if (err) {
-        console.error('yt-dlp stderr:', stderr);
-        return reject(new Error(stderr || err.message));
-      }
-      const url = stdout.trim().split('\n')[0];
-      if (!url) return reject(new Error('No URL returned by yt-dlp'));
-      resolve(url);
-    });
-  });
-}
 
 async function innertubeSearch(query, limit = 20) {
   const res = await fetch(
@@ -126,11 +64,6 @@ async function innertubeSearch(query, limit = 20) {
   return songs;
 }
 
-// Validate YouTube video ID
-function isValidVideoId(id) {
-  return /^[a-zA-Z0-9_-]{11}$/.test(id);
-}
-
 // Search songs on YouTube
 router.get('/search', async (req, res) => {
   try {
@@ -145,45 +78,11 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// Get stream URL — used by the app's audio player
-router.get('/stream-url/:videoId', async (req, res) => {
-  try {
-    const { videoId } = req.params;
-    if (!isValidVideoId(videoId)) {
-      return res.status(400).json({ error: 'Invalid video ID' });
-    }
-
-    const streamUrl = await ytdlpGetUrl(videoId);
-    console.log('Stream URL found via yt-dlp for', videoId);
-    res.json({ streamUrl });
-  } catch (error) {
-    console.error('Stream URL error:', error.message);
-    res.status(500).json({ error: 'Failed to get stream URL' });
-  }
-});
-
-// Stream audio — pipe directly (fallback endpoint)
-router.get('/stream/:videoId', async (req, res) => {
-  try {
-    const { videoId } = req.params;
-    if (!isValidVideoId(videoId)) {
-      return res.status(400).json({ error: 'Invalid video ID' });
-    }
-
-    // Get URL via yt-dlp then redirect to it
-    const streamUrl = await ytdlpGetUrl(videoId);
-    res.redirect(streamUrl);
-  } catch (error) {
-    console.error('Stream error:', error.message);
-    if (!res.headersSent) res.status(500).json({ error: 'Stream failed' });
-  }
-});
-
 // Get song metadata
 router.get('/info/:videoId', async (req, res) => {
   try {
     const { videoId } = req.params;
-    if (!isValidVideoId(videoId)) {
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
       return res.status(400).json({ error: 'Invalid video ID' });
     }
 
