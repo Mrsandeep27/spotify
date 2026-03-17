@@ -11,12 +11,16 @@
       "resizeMode": "contain",
       "backgroundColor": "#121212"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.spofity.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -36,7 +40,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [],
+    "plugins": [
+      "expo-web-browser"
+    ],
     "extra": {
       "eas": {
         "projectId": "c93b3454-c699-4d53-a427-d5dae60e1a8f"
