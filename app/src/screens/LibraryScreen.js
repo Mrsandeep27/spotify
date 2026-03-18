@@ -10,7 +10,7 @@ import * as FileSystem from 'expo-file-system';
 import { COLORS } from '../theme/colors';
 import useStore from '../store/useStore';
 import SongCard from '../components/SongCard';
-import { ENDPOINTS } from '../config/api';
+import { getStreamUrl } from '../services/youtubeExtractor';
 
 export default function LibraryScreen() {
   const navigation = useNavigation();
@@ -60,10 +60,8 @@ export default function LibraryScreen() {
 
       const dest = `${dir}${song.id}.mp3`;
 
-      // Get stream URL from backend
-      const res = await fetch(ENDPOINTS.streamUrl(song.id));
-      if (!res.ok) throw new Error('Failed to get stream URL');
-      const { streamUrl } = await res.json();
+      // Get stream URL client-side (same as playback)
+      const streamUrl = await getStreamUrl(song.id);
       if (!streamUrl) throw new Error('No stream URL available');
 
       const dl = FileSystem.createDownloadResumable(

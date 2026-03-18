@@ -9,10 +9,8 @@ export const ENDPOINTS = {
   googleAuth: `${API_BASE_URL}/api/auth/google`,
   me: `${API_BASE_URL}/api/auth/me`,
 
-  // Songs
+  // Songs (search/metadata from backend, streaming is client-side via youtubeExtractor)
   search: (q) => `${API_BASE_URL}/api/songs/search?q=${encodeURIComponent(q)}`,
-  stream: (videoId) => `${API_BASE_URL}/api/songs/stream/${videoId}`,
-  streamUrl: (videoId) => `${API_BASE_URL}/api/songs/stream-url/${videoId}`,
   info: (videoId) => `${API_BASE_URL}/api/songs/info/${videoId}`,
   featured: `${API_BASE_URL}/api/songs/featured`,
 

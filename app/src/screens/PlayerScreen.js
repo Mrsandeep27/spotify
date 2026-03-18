@@ -58,8 +58,11 @@ export default function PlayerScreen() {
         SocketService.sendSongChange(session.code, song);
       }
     } catch (e) {
-      Alert.alert('Playback Error', 'Could not play this song. Try another.');
-      console.error(e.message);
+      console.error('[Player] Playback error:', e.message);
+      Alert.alert(
+        'Playback Error',
+        e.message || 'Could not play this song. Try another.'
+      );
     } finally {
       setLoading(false);
     }

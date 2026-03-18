@@ -18,8 +18,20 @@ export const AudioPlayer = {
         playThroughEarpieceAndroid: false,
       });
 
-      // Extract stream URL client-side (phone's residential IP isn't blocked by YouTube)
-      const streamUri = song.localUri || (await getStreamUrl(song.id));
+      // Get stream URL — retry once if first attempt fails
+      let streamUri = song.localUri;
+      if (!streamUri) {
+        try {
+          streamUri = await getStreamUrl(song.id);
+        } catch (firstErr) {
+          console.warn('[Audio] First extraction attempt failed, retrying...', firstErr.message);
+          // Wait 1 second then retry
+          await new Promise((r) => setTimeout(r, 1000));
+          streamUri = await getStreamUrl(song.id);
+        }
+      }
+
+      console.log('[Audio] Loading URI:', streamUri?.substring(0, 80) + '...');
 
       const { sound } = await Audio.Sound.createAsync(
         { uri: streamUri },
@@ -32,7 +44,7 @@ export const AudioPlayer = {
       soundObject = sound;
       return sound;
     } catch (error) {
-      console.error('AudioPlayer.load error:', error.message);
+      console.error('[Audio] Load error:', error.message);
       throw error;
     }
   },
