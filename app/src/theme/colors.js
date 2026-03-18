@@ -1,45 +1,46 @@
+// Spotify-accurate color system
 export const COLORS = {
   // Backgrounds
-  background: '#121212',
-  surface: '#1E1E1E',
-  card: '#282828',
-  elevated: '#333333',
+  background: '#000000',     // Pure black like Spotify
+  surface: '#121212',
+  card: '#181818',
+  elevated: '#282828',
 
   // Brand
-  primary: '#1DB954',
-  primaryDark: '#1AA34A',
+  primary: '#1ED760',        // Spotify bright green
+  primaryDark: '#1DB954',
   primaryLight: '#1ED760',
 
   // Text
   textPrimary: '#FFFFFF',
   textSecondary: '#B3B3B3',
-  textMuted: '#535353',
+  textMuted: '#6A6A6A',
 
   // UI
-  border: '#333333',
-  separator: '#282828',
+  border: '#282828',
+  separator: '#1A1A1A',
   overlay: 'rgba(0,0,0,0.7)',
   overlayLight: 'rgba(0,0,0,0.4)',
 
   // Status
-  error: '#E91429',
+  error: '#F15E6C',
   warning: '#FFA42B',
   info: '#0D72EA',
 
   // Player
-  playerBg: '#121212',
-  progressBar: '#1DB954',
-  progressBg: '#535353',
+  playerBg: '#000000',
+  progressBar: '#1ED760',
+  progressBg: '#4D4D4D',
 
   // Volume Booster
-  boosterLow: '#1DB954',
+  boosterLow: '#1ED760',
   boosterMid: '#FFA42B',
-  boosterHigh: '#E91429',
+  boosterHigh: '#F15E6C',
 };
 
 export const GRADIENTS = {
   dark: ['#1a1a2e', '#121212'],
-  green: ['#1DB954', '#0f7a34'],
-  playerTop: ['rgba(29,185,84,0.4)', 'transparent'],
+  green: ['#1ED760', '#0f7a34'],
+  playerTop: ['rgba(30,215,96,0.3)', 'transparent'],
   card: ['#282828', '#1a1a1a'],
 };

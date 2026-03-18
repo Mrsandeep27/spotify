@@ -5,41 +5,42 @@ import { COLORS } from '../theme/colors';
 import useStore from '../store/useStore';
 
 export default function SongCard({ song, onPress, rightAction, showDuration = false }) {
-  const { currentSong, isPlaying, isLiked } = useStore();
+  const { currentSong, isPlaying } = useStore();
   if (!song) return null;
-  const isCurrentSong = currentSong?.id === song.id;
-  const liked = isLiked(song.id);
+  const isActive = currentSong?.id === song.id;
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.6}>
       {/* Thumbnail */}
-      <View style={styles.thumbWrapper}>
-        <Image source={{ uri: song.thumbnail || song.thumbnailSmall }} style={styles.thumbnail} />
-        {isCurrentSong && (
-          <View style={styles.playingOverlay}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color="#fff" />
+      <View style={styles.thumbWrap}>
+        <Image source={{ uri: song.thumbnailSmall || song.thumbnail }} style={styles.thumb} />
+        {isActive && (
+          <View style={styles.activeOverlay}>
+            <Ionicons name={isPlaying ? 'volume-high' : 'play'} size={14} color={COLORS.primary} />
           </View>
         )}
       </View>
 
-      {/* Info */}
+      {/* Song info */}
       <View style={styles.info}>
-        <Text
-          style={[styles.title, isCurrentSong && styles.titleActive]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.title, isActive && styles.titleActive]} numberOfLines={1}>
           {song.title}
         </Text>
-        <Text style={styles.artist} numberOfLines={1}>
-          {song.artist}
-          {showDuration && song.duration ? `  •  ${song.duration}` : ''}
-        </Text>
+        <View style={styles.metaRow}>
+          {isActive && (
+            <Ionicons name="musical-note" size={11} color={COLORS.primary} style={{ marginRight: 3 }} />
+          )}
+          <Text style={[styles.subtitle, isActive && styles.subtitleActive]} numberOfLines={1}>
+            {song.artist}
+            {showDuration && song.duration ? ` \u00B7 ${song.duration}` : ''}
+          </Text>
+        </View>
       </View>
 
-      {/* Right action or default more icon */}
+      {/* Right action */}
       {rightAction || (
-        <TouchableOpacity style={styles.moreBtn}>
-          <Ionicons name="ellipsis-vertical" size={18} color={COLORS.textMuted} />
+        <TouchableOpacity style={styles.moreBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="ellipsis-vertical" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -51,15 +52,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 8, gap: 12,
   },
-  thumbWrapper: { position: 'relative' },
-  thumbnail: { width: 52, height: 52, borderRadius: 4, backgroundColor: COLORS.card },
-  playingOverlay: {
-    ...StyleSheet.absoluteFillObject, borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center',
+  thumbWrap: { position: 'relative' },
+  thumb: {
+    width: 48, height: 48, borderRadius: 4,
+    backgroundColor: COLORS.card,
   },
-  info: { flex: 1 },
-  title: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '500' },
+  activeOverlay: {
+    ...StyleSheet.absoluteFillObject, borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  info: { flex: 1, justifyContent: 'center' },
+  title: { color: '#fff', fontSize: 15, fontWeight: '400', lineHeight: 20 },
   titleActive: { color: COLORS.primary },
-  artist: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
-  moreBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  subtitle: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 17 },
+  subtitleActive: { color: COLORS.primary, opacity: 0.7 },
+  moreBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
 });

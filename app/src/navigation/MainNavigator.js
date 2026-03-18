@@ -12,29 +12,17 @@ import { COLORS } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
 
-function TabBarIcon({ name, focused }) {
-  return (
-    <View style={focused ? styles.activeIconWrapper : null}>
-      <Ionicons
-        name={focused ? name : `${name}-outline`}
-        size={24}
-        color={focused ? COLORS.textPrimary : COLORS.textMuted}
-      />
-    </View>
-  );
-}
-
 function MainLayout() {
   const user = useStore((s) => s.user);
   const isAdmin = user?.isAdmin === true;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
           tabBarStyle: styles.tabBar,
-          tabBarActiveTintColor: COLORS.textPrimary,
+          tabBarActiveTintColor: '#fff',
           tabBarInactiveTintColor: COLORS.textMuted,
           tabBarLabelStyle: styles.tabLabel,
           tabBarShowLabel: true,
@@ -44,14 +32,18 @@ function MainLayout() {
           name="Home"
           component={HomeScreen}
           options={{
-            tabBarIcon: ({ focused }) => <TabBarIcon name="home" focused={focused} />,
+            tabBarIcon: ({ focused }) => (
+              <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={focused ? '#fff' : COLORS.textMuted} />
+            ),
           }}
         />
         <Tab.Screen
           name="Search"
           component={SearchScreen}
           options={{
-            tabBarIcon: ({ focused }) => <TabBarIcon name="search" focused={focused} />,
+            tabBarIcon: ({ focused }) => (
+              <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={focused ? '#fff' : COLORS.textMuted} />
+            ),
           }}
         />
         <Tab.Screen
@@ -59,7 +51,9 @@ function MainLayout() {
           component={LibraryScreen}
           options={{
             tabBarLabel: 'Your Library',
-            tabBarIcon: ({ focused }) => <TabBarIcon name="library" focused={focused} />,
+            tabBarIcon: ({ focused }) => (
+              <Ionicons name={focused ? 'library' : 'library-outline'} size={24} color={focused ? '#fff' : COLORS.textMuted} />
+            ),
           }}
         />
         {isAdmin && (
@@ -68,7 +62,9 @@ function MainLayout() {
             component={AdminPanelScreen}
             options={{
               tabBarLabel: 'Admin',
-              tabBarIcon: ({ focused }) => <TabBarIcon name="shield-checkmark" focused={focused} />,
+              tabBarIcon: ({ focused }) => (
+                <Ionicons name={focused ? 'shield-checkmark' : 'shield-checkmark-outline'} size={24} color={focused ? '#fff' : COLORS.textMuted} />
+              ),
             }}
           />
         )}
@@ -82,16 +78,16 @@ export default MainLayout;
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: COLORS.surface,
-    borderTopColor: COLORS.border,
-    borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 8,
-    paddingTop: 6,
+    backgroundColor: '#000',
+    borderTopWidth: 0,
+    elevation: 0,
+    height: 56,
+    paddingBottom: 6,
+    paddingTop: 4,
   },
   tabLabel: {
     fontSize: 10,
     fontWeight: '600',
+    marginTop: -2,
   },
-  activeIconWrapper: {},
 });

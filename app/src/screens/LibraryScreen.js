@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  Image, Alert,
+  Image, Alert, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,13 +17,12 @@ export default function LibraryScreen() {
   const { likedSongs, downloadedSongs, setCurrentSong, setQueue,
     removeDownloadedSong, addDownloadedSong, isDownloaded } = useStore();
 
-  const [activeTab, setActiveTab] = useState('liked'); // 'liked' | 'downloads'
+  const [activeTab, setActiveTab] = useState('liked');
   const [downloading, setDownloading] = useState({});
 
   const songs = activeTab === 'liked' ? likedSongs : downloadedSongs;
 
   const playSong = (song) => {
-    // For downloads, use local URI if available
     const actualSong = activeTab === 'downloads'
       ? { ...song, localUri: song.localUri }
       : song;
@@ -87,15 +86,15 @@ export default function LibraryScreen() {
     <View style={styles.empty}>
       <Ionicons
         name={activeTab === 'liked' ? 'heart-outline' : 'download-outline'}
-        size={80} color={COLORS.textMuted}
+        size={64} color={COLORS.textMuted}
       />
       <Text style={styles.emptyTitle}>
-        {activeTab === 'liked' ? 'No liked songs yet' : 'No downloads yet'}
+        {activeTab === 'liked' ? 'Songs you like will appear here' : 'Download songs to listen offline'}
       </Text>
-      <Text style={styles.emptySubtitle}>
+      <Text style={styles.emptySub}>
         {activeTab === 'liked'
-          ? 'Heart songs while listening to add them here'
-          : 'Download songs to listen offline'}
+          ? 'Save songs by tapping the heart icon'
+          : 'Tap the download icon on any song'}
       </Text>
       <TouchableOpacity style={styles.emptyBtn} onPress={() => navigation.navigate('Search')}>
         <Text style={styles.emptyBtnText}>Find songs</Text>
@@ -105,48 +104,63 @@ export default function LibraryScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Library</Text>
-        <TouchableOpacity style={styles.searchBtn} onPress={() => navigation.navigate('Search')}>
-          <Ionicons name="search" size={22} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        <View>
+          <Text style={styles.headerTitle}>Your Library</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => navigation.navigate('Search')}>
+            <Ionicons name="search-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerIconBtn}>
+            <Ionicons name="add" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
+      {/* Filter Chips — Spotify style */}
+      <View style={styles.chips}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'liked' && styles.activeTab]}
+          style={[styles.chip, activeTab === 'liked' && styles.chipActive]}
           onPress={() => setActiveTab('liked')}
         >
-          <Ionicons name="heart" size={14} color={activeTab === 'liked' ? '#000' : COLORS.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'liked' && styles.activeTabText]}>
-            Liked ({likedSongs.length})
+          <Text style={[styles.chipText, activeTab === 'liked' && styles.chipTextActive]}>
+            Liked Songs
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'downloads' && styles.activeTab]}
+          style={[styles.chip, activeTab === 'downloads' && styles.chipActive]}
           onPress={() => setActiveTab('downloads')}
         >
-          <Ionicons name="download" size={14} color={activeTab === 'downloads' ? '#000' : COLORS.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'downloads' && styles.activeTabText]}>
-            Downloads ({downloadedSongs.length})
+          <Text style={[styles.chipText, activeTab === 'downloads' && styles.chipTextActive]}>
+            Downloads
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Liked Songs Banner */}
       {activeTab === 'liked' && likedSongs.length > 0 && (
-        <TouchableOpacity onPress={() => playSong(likedSongs[0])} style={styles.banner}>
-          <LinearGradient colors={['#9B59B6', '#6C3483']} style={styles.bannerGradient}>
-            <Ionicons name="heart" size={40} color="#fff" />
+        <TouchableOpacity
+          onPress={() => playSong(likedSongs[0])}
+          style={styles.banner}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={['#4A17C8', '#7B4FC4', '#C277E0']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.bannerGradient}
+          >
+            <Ionicons name="heart" size={28} color="#fff" />
             <View style={styles.bannerInfo}>
               <Text style={styles.bannerTitle}>Liked Songs</Text>
-              <Text style={styles.bannerSub}>{likedSongs.length} songs</Text>
+              <Text style={styles.bannerCount}>{likedSongs.length} songs</Text>
             </View>
-            <TouchableOpacity style={styles.bannerPlay}>
-              <Ionicons name="play-circle" size={48} color={COLORS.primary} />
-            </TouchableOpacity>
+            <View style={styles.bannerPlayBtn}>
+              <Ionicons name="play" size={22} color="#000" />
+            </View>
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -167,7 +181,7 @@ export default function LibraryScreen() {
                   <Text style={styles.dlPct}>{downloading[item.id]}%</Text>
                 ) : (
                   <Ionicons
-                    name={isDownloaded(item.id) ? 'checkmark-circle' : 'download-outline'}
+                    name={isDownloaded(item.id) ? 'checkmark-circle' : 'arrow-down-circle-outline'}
                     size={22}
                     color={isDownloaded(item.id) ? COLORS.primary : COLORS.textSecondary}
                   />
@@ -183,32 +197,58 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+
+  // Header
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 56, paddingHorizontal: 16, paddingBottom: 16,
+    paddingTop: 54, paddingHorizontal: 16, paddingBottom: 8,
   },
-  headerTitle: { fontSize: 24, fontWeight: '900', color: COLORS.textPrimary },
-  searchBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' },
-  tabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 16 },
-  tab: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: COLORS.surface,
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#fff' },
+  headerRight: { flexDirection: 'row', gap: 16 },
+  headerIconBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+
+  // Filter Chips
+  chips: {
+    flexDirection: 'row', paddingHorizontal: 16,
+    gap: 8, marginTop: 8, marginBottom: 12,
   },
-  activeTab: { backgroundColor: COLORS.primary },
-  tabText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
-  activeTabText: { color: '#000', fontWeight: '700' },
-  banner: { marginHorizontal: 16, borderRadius: 12, overflow: 'hidden', marginBottom: 8 },
-  bannerGradient: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 },
+  chip: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: COLORS.elevated,
+  },
+  chipActive: { backgroundColor: COLORS.primary },
+  chipText: { color: '#fff', fontSize: 13, fontWeight: '500' },
+  chipTextActive: { color: '#000', fontWeight: '700' },
+
+  // Banner
+  banner: { marginHorizontal: 16, borderRadius: 8, overflow: 'hidden', marginBottom: 8 },
+  bannerGradient: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 16, gap: 14,
+  },
   bannerInfo: { flex: 1 },
-  bannerTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  bannerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 2 },
-  bannerPlay: {},
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
-  emptyTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 32 },
-  emptyBtn: { backgroundColor: COLORS.primary, borderRadius: 20, paddingHorizontal: 24, paddingVertical: 10, marginTop: 8 },
-  emptyBtnText: { color: '#000', fontWeight: '700' },
+  bannerTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  bannerCount: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 },
+  bannerPlayBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  // Empty
+  empty: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingTop: 80, paddingHorizontal: 32, gap: 8,
+  },
+  emptyTitle: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center', marginTop: 12 },
+  emptySub: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center' },
+  emptyBtn: {
+    backgroundColor: '#fff', borderRadius: 24,
+    paddingHorizontal: 28, paddingVertical: 12, marginTop: 16,
+  },
+  emptyBtnText: { color: '#000', fontWeight: '700', fontSize: 14 },
+
+  // Download
   dlBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   dlPct: { color: COLORS.primary, fontSize: 11, fontWeight: '700' },
 });

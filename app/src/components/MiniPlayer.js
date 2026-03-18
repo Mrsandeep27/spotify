@@ -1,16 +1,7 @@
 import React from 'react';
-import {
-  View, Text, Image, TouchableOpacity, StyleSheet,
-} from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { Platform } from 'react-native';
-let BlurView;
-try {
-  BlurView = require('expo-blur').BlurView;
-} catch (e) {
-  BlurView = null;
-}
 import { COLORS } from '../theme/colors';
 import useStore from '../store/useStore';
 import { AudioPlayer } from '../services/audioPlayer';
@@ -25,75 +16,65 @@ export default function MiniPlayer() {
 
   return (
     <TouchableOpacity
-      activeOpacity={0.9}
+      activeOpacity={0.95}
       onPress={() => navigation.navigate('Player')}
       style={styles.wrapper}
     >
-      {BlurView && Platform.OS === 'ios' ? (
-        <BlurView intensity={80} tint="dark" style={styles.blur}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progress, { width: `${progress * 100}%` }]} />
-          </View>
-          <View style={styles.content}>
-            <Image source={{ uri: currentSong.thumbnail }} style={styles.thumbnail} />
-            <View style={styles.info}>
-              <Text style={styles.title} numberOfLines={1}>{currentSong.title}</Text>
-              <Text style={styles.artist} numberOfLines={1}>{currentSong.artist}</Text>
-            </View>
-            <View style={styles.controls}>
-              <TouchableOpacity onPress={() => AudioPlayer.togglePlayPause()} style={styles.btn}>
-                <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.btn}>
-                <Ionicons name="play-skip-forward" size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </BlurView>
-      ) : (
-        <View style={[styles.blur, { backgroundColor: 'rgba(30,30,30,0.95)' }]}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progress, { width: `${progress * 100}%` }]} />
-          </View>
-          <View style={styles.content}>
-            <Image source={{ uri: currentSong.thumbnail }} style={styles.thumbnail} />
-            <View style={styles.info}>
-              <Text style={styles.title} numberOfLines={1}>{currentSong.title}</Text>
-              <Text style={styles.artist} numberOfLines={1}>{currentSong.artist}</Text>
-            </View>
-            <View style={styles.controls}>
-              <TouchableOpacity onPress={() => AudioPlayer.togglePlayPause()} style={styles.btn}>
-                <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.btn}>
-                <Ionicons name="play-skip-forward" size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
-          </View>
+      {/* Mini player body — Spotify style */}
+      <View style={styles.body}>
+        <Image source={{ uri: currentSong.thumbnailSmall || currentSong.thumbnail }} style={styles.thumb} />
+        <View style={styles.info}>
+          <Text style={[styles.title, isPlaying && styles.titleActive]} numberOfLines={1}>
+            {currentSong.title}
+          </Text>
+          <Text style={styles.artist} numberOfLines={1}>{currentSong.artist}</Text>
         </View>
-      )}
+        <TouchableOpacity
+          onPress={(e) => { e.stopPropagation?.(); AudioPlayer.togglePlayPause(); }}
+          style={styles.playBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name={isPlaying ? 'pause' : 'play'} size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress bar — thin line at bottom like Spotify */}
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` }]} />
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: 'absolute', bottom: 60, left: 8, right: 8,
-    borderRadius: 12, overflow: 'hidden', elevation: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4,
+    position: 'absolute', bottom: 58, left: 6, right: 6,
+    borderRadius: 8, overflow: 'hidden',
+    backgroundColor: COLORS.elevated,
+    elevation: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.5, shadowRadius: 8,
   },
-  blur: { borderRadius: 12, overflow: 'hidden' },
-  progressBar: { height: 2, backgroundColor: COLORS.elevated },
-  progress: { height: 2, backgroundColor: COLORS.primary },
-  content: {
+  body: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 10, gap: 12,
-    backgroundColor: 'rgba(30,30,30,0.85)',
+    paddingLeft: 6, paddingRight: 12,
+    paddingVertical: 6, gap: 10,
   },
-  thumbnail: { width: 44, height: 44, borderRadius: 6, backgroundColor: COLORS.card },
+  thumb: {
+    width: 42, height: 42, borderRadius: 4,
+    backgroundColor: COLORS.card,
+  },
   info: { flex: 1 },
-  title: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700' },
-  artist: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  btn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  title: { color: '#fff', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  titleActive: { color: COLORS.primary },
+  artist: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 16 },
+  playBtn: {
+    width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
+  },
+  progressTrack: {
+    height: 2, backgroundColor: COLORS.progressBg,
+  },
+  progressFill: {
+    height: 2, backgroundColor: COLORS.primary,
+  },
 });
