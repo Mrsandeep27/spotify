@@ -1,30 +1,34 @@
 // Bridge for running YouTube's decipher in a WebView.
-// Two approaches:
-// 1. Load player JS from CDN, call decipher if functions are global
-// 2. Fallback: load modified JS with injected decipher hook
+//
+// The decipher functions (b0, kt, Ka) are LOCAL to the player JS IIFE.
+// We modify the player JS to inject a hook INSIDE the closure that
+// exposes the decipher function on the global _yt_player object.
+// Then we eval the modified JS in the WebView and call it.
 
 let _setSource = null;
-let _injectJS = null;
 let _resolveFunc = null;
 let _rejectFunc = null;
 let _timeoutId = null;
 
 export function registerWebView(ref) {
   _setSource = ref.setSource;
-  _injectJS = ref.injectJS;
 }
 
 export function unregisterWebView() {
   _setSource = null;
-  _injectJS = null;
 }
 
 export function isWebViewReady() {
   return _setSource !== null;
 }
 
-// Approach 1: Load player JS from CDN, try calling decipher globally
-export function evalInWebView(modifiedJs, encryptedSig, playerJsUrl, decipherExpr) {
+/**
+ * Runs the modified player JS in the WebView and calls the decipher function.
+ * @param {string} modifiedJs - Player JS with injected decipher hook
+ * @param {string} encryptedSig - The encrypted signature to decipher
+ * @returns {Promise<string>} - The deciphered signature
+ */
+export function evalInWebView(modifiedJs, encryptedSig) {
   return new Promise((resolve, reject) => {
     if (!_setSource) {
       reject(new Error('WebView not registered'));
@@ -40,40 +44,38 @@ export function evalInWebView(modifiedJs, encryptedSig, playerJsUrl, decipherExp
       reject(new Error('WebView timeout (30s)'));
     }, 30000);
 
-    // Escape sig for safe embedding
-    const safeSig = encryptedSig.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    // Escape </ to <\/ so it doesn't break HTML script tags
+    // In JS, <\/ evaluates to </ so functionality is preserved
+    const safeJs = modifiedJs.replace(/<\//g, '<\\/');
 
-    // Try loading player JS from CDN and calling decipher directly
-    const html = `<!DOCTYPE html>
-<html><head></head><body>
-<script src="${playerJsUrl}" onload="tryDecipher()" onerror="onLoadError()"><\/script>
+    // Escape the signature for safe embedding in JS string
+    const safeSig = encryptedSig
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
 <script>
-var sig = '${safeSig}';
+var _yt_player = {};
+try {
+  ${safeJs}
 
-function tryDecipher() {
-  try {
-    // The decipher expression uses function names extracted from the player JS
-    var result = (function() { return ${decipherExpr}; })();
+  if (typeof _yt_player.decipher === 'function') {
+    var sig = '${safeSig}';
+    var result = _yt_player.decipher(sig);
     if (result && typeof result === 'string') {
-      window.ReactNativeWebView.postMessage(JSON.stringify({type:'result',sig:result}));
-      return;
+      window.ReactNativeWebView.postMessage(JSON.stringify({type:'result', sig:result}));
+    } else {
+      window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:'decipher returned: ' + typeof result + ' ' + String(result)}));
     }
-    window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'decipher returned: ' + typeof result}));
-  } catch(e) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'decipher error: ' + e.message}));
+  } else {
+    window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:'_yt_player.decipher not defined. Keys: ' + Object.keys(_yt_player).slice(0,10).join(',')}));
   }
+} catch(e) {
+  window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:'JS error: ' + (e.message || String(e)).substring(0,200)}));
 }
-
-function onLoadError() {
-  window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'Failed to load player JS'}));
-}
-
-// Safety timeout
-setTimeout(function() {
-  window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'Page timeout'}));
-}, 20000);
-<\/script>
-</body></html>`;
+<\/script></body></html>`;
 
     _setSource({ html, baseUrl: 'https://www.youtube.com' });
   });
