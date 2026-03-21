@@ -11,7 +11,6 @@ import PlayerScreen from '../screens/PlayerScreen';
 import GroupSessionScreen from '../screens/GroupSessionScreen';
 import VolumeBoosterScreen from '../screens/VolumeBoosterScreen';
 import { COLORS } from '../theme/colors';
-import HiddenWebView from '../components/HiddenWebView';
 
 const Stack = createStackNavigator();
 
@@ -65,8 +64,6 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {/* Hidden WebView for YouTube stream extraction */}
-      <HiddenWebView />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isLoggedIn ? (
           <Stack.Screen name="Login" component={LoginScreen} />
