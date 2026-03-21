@@ -1,9 +1,8 @@
-// Bridge for running YouTube's decipher in a WebView.
+// Bridge for extracting deciphered YouTube audio URLs via WebView.
 //
-// The decipher functions (b0, kt, Ka) are LOCAL to the player JS IIFE.
-// We modify the player JS to inject a hook INSIDE the closure that
-// exposes the decipher function on the global _yt_player object.
-// Then we eval the modified JS in the WebView and call it.
+// The WebView navigates directly to YouTube's embed page.
+// injectedJavaScriptBeforeContentLoaded intercepts XHR/fetch BEFORE
+// YouTube's player scripts run, capturing deciphered audio URLs.
 
 let _setSource = null;
 let _resolveFunc = null;
@@ -22,13 +21,7 @@ export function isWebViewReady() {
   return _setSource !== null;
 }
 
-/**
- * Runs the modified player JS in the WebView and calls the decipher function.
- * @param {string} modifiedJs - Player JS with injected decipher hook
- * @param {string} encryptedSig - The encrypted signature to decipher
- * @returns {Promise<string>} - The deciphered signature
- */
-export function evalInWebView(modifiedJs, encryptedSig) {
+export function extractViaWebView(videoId) {
   return new Promise((resolve, reject) => {
     if (!_setSource) {
       reject(new Error('WebView not registered'));
@@ -41,51 +34,22 @@ export function evalInWebView(modifiedJs, encryptedSig) {
 
     _timeoutId = setTimeout(() => {
       cleanup();
-      reject(new Error('WebView timeout (30s)'));
-    }, 30000);
+      reject(new Error('WebView extraction timeout'));
+    }, 25000);
 
-    // Escape </ to <\/ so it doesn't break HTML script tags
-    // In JS, <\/ evaluates to </ so functionality is preserved
-    const safeJs = modifiedJs.replace(/<\//g, '<\\/');
-
-    // Escape the signature for safe embedding in JS string
-    const safeSig = encryptedSig
-      .replace(/\\/g, '\\\\')
-      .replace(/'/g, "\\'")
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r');
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
-<script>
-var _yt_player = {};
-try {
-  ${safeJs}
-
-  if (typeof _yt_player.decipher === 'function') {
-    var sig = '${safeSig}';
-    var result = _yt_player.decipher(sig);
-    if (result && typeof result === 'string') {
-      window.ReactNativeWebView.postMessage(JSON.stringify({type:'result', sig:result}));
-    } else {
-      window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:'decipher returned: ' + typeof result + ' ' + String(result)}));
-    }
-  } else {
-    window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:'_yt_player.decipher not defined. Keys: ' + Object.keys(_yt_player).slice(0,10).join(',')}));
-  }
-} catch(e) {
-  window.ReactNativeWebView.postMessage(JSON.stringify({type:'error', message:'JS error: ' + (e.message || String(e)).substring(0,200)}));
-}
-<\/script></body></html>`;
-
-    _setSource({ html, baseUrl: 'https://www.youtube.com' });
+    // Navigate WebView directly to YouTube embed page
+    // mute=1 prevents audio from WebView, but player still deciphers URLs
+    _setSource({
+      uri: `https://www.youtube.com/embed/${videoId}?autoplay=1&html5=1&mute=1`,
+    });
   });
 }
 
 export function onWebViewMessage(data) {
-  if (data.type === 'result' && data.sig) {
+  if (data.type === 'audioUrl' && data.url) {
     const resolve = _resolveFunc;
     cleanup();
-    if (resolve) resolve(data.sig);
+    if (resolve) resolve(data.url);
   } else if (data.type === 'error') {
     const reject = _rejectFunc;
     cleanup();
