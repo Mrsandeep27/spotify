@@ -1,144 +1,175 @@
-// Client-side YouTube audio stream extraction
-// PRIMARY: WebView-based (YouTube's own JS deciphers signatures)
-// FALLBACK: Piped/Invidious proxies (when available)
+// YouTube audio stream extraction with signature decryption.
 //
-// Runs on user's phone (residential IP).
+// Flow:
+// 1. Fetch YouTube watch page → get signatureCipher data + player JS URL
+// 2. Analyze player JS → find decipher function names & args
+// 3. Load player JS in WebView from YouTube CDN → call decipher function
+// 4. Build final URL with deciphered signature
+//
+// The player JS is loaded from YouTube's own CDN in the WebView,
+// so the decipher functions run in their original context.
 
-import { extractViaWebView, isWebViewReady } from './webViewBridge';
+import { evalInWebView, isWebViewReady } from './webViewBridge';
 
-// ── Timeout wrapper ──
-function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...options, signal: controller.signal }).finally(() =>
-    clearTimeout(timer)
-  );
+// ── Timeout fetch ──
+function fetchT(url, opts = {}, ms = 15000) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(t));
 }
 
-// ── Pick best audio stream ──
-function pickBestAudio(streams) {
-  if (!streams || streams.length === 0) return null;
-  const sorted = [...streams].sort((a, b) => {
-    const mime = (f) => f.mimeType || f.type || f.codec || '';
-    const aAac = mime(a).includes('mp4a') || mime(a).includes('audio/mp4') ? 1 : 0;
-    const bAac = mime(b).includes('mp4a') || mime(b).includes('audio/mp4') ? 1 : 0;
+// ── Cache ──
+let cachedAnalysis = null;
+let cacheExpiry = 0;
+
+// ═══════════════════════════════════════════════
+// Step 1: Fetch YouTube page
+// ═══════════════════════════════════════════════
+async function fetchVideoInfo(videoId) {
+  console.log('[YT] Fetching page for', videoId);
+  const res = await fetchT(
+    `https://m.youtube.com/watch?v=${videoId}&bpctr=9999999999&has_verified=1`,
+    {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    }
+  );
+
+  if (!res.ok) throw new Error(`Page HTTP ${res.status}`);
+  const html = await res.text();
+
+  // Extract player response
+  const prMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;/s);
+  if (!prMatch) throw new Error('No player response in page');
+
+  const pr = JSON.parse(prMatch[1]);
+  if (pr?.playabilityStatus?.status !== 'OK') {
+    throw new Error(`Video ${pr?.playabilityStatus?.status}: ${pr?.playabilityStatus?.reason || ''}`);
+  }
+
+  const sd = pr?.streamingData;
+  if (!sd) throw new Error('No streaming data');
+
+  // Player JS URL
+  const jsMatch = html.match(/"jsUrl"\s*:\s*"([^"]+)"/);
+  if (!jsMatch) throw new Error('No player JS URL');
+  const playerJsUrl = 'https://www.youtube.com' + jsMatch[1];
+
+  // Audio formats
+  const allFmts = [...(sd.adaptiveFormats || []), ...(sd.formats || [])];
+  const audio = allFmts.filter(f => f.mimeType?.includes('audio'));
+  if (!audio.length) throw new Error('No audio formats');
+
+  // Prefer AAC, highest bitrate
+  audio.sort((a, b) => {
+    const aAac = a.mimeType.includes('mp4a') ? 1 : 0;
+    const bAac = b.mimeType.includes('mp4a') ? 1 : 0;
     if (bAac !== aAac) return bAac - aAac;
     return (b.bitrate || 0) - (a.bitrate || 0);
   });
-  return sorted[0];
+
+  // Check for direct URL
+  const direct = audio.find(f => f.url);
+  if (direct) {
+    console.log('[YT] Direct audio URL found!');
+    return { directUrl: direct.url };
+  }
+
+  // Get ciphered format
+  const ciphered = audio.find(f => f.signatureCipher || f.cipher);
+  if (!ciphered) throw new Error('No audio streams available');
+
+  const cipherStr = ciphered.signatureCipher || ciphered.cipher;
+  const params = {};
+  cipherStr.split('&').forEach(p => {
+    const [k, ...v] = p.split('=');
+    params[k] = decodeURIComponent(v.join('='));
+  });
+
+  return {
+    encSig: params.s,
+    sp: params.sp || 'sig',
+    baseUrl: params.url,
+    playerJsUrl,
+  };
 }
 
 // ═══════════════════════════════════════════════
-// METHOD 1: WebView (YouTube's own player deciphers)
+// Step 2: Analyze player JS for decipher pattern
 // ═══════════════════════════════════════════════
-async function tryWebView(videoId) {
-  if (!isWebViewReady()) {
-    console.log('[YT] WebView not ready yet');
-    return null;
+async function analyzePlayerJs(playerJsUrl) {
+  if (cachedAnalysis && Date.now() < cacheExpiry && cachedAnalysis.url === playerJsUrl) {
+    return cachedAnalysis;
   }
 
-  try {
-    console.log('[YT] Trying WebView extraction...');
-    const url = await extractViaWebView(videoId);
-    if (url) {
-      console.log('[YT] ✓ WebView OK');
-      return url;
-    }
-  } catch (err) {
-    console.warn('[YT] WebView error:', err.message);
+  console.log('[YT] Fetching player JS...');
+  const res = await fetchT(playerJsUrl, {}, 20000);
+  if (!res.ok) throw new Error(`Player JS HTTP ${res.status}`);
+  const js = await res.text();
+  console.log('[YT] Player JS:', js.length, 'bytes');
+
+  // Find: kt(32,1268,b0(29,5694,C.s))
+  const dp = /(\w+)\((\d+)\s*,\s*(\d+)\s*,\s*(\w+)\((\d+)\s*,\s*(\d+)\s*,\s*\w+\.s\)\)/;
+  const dm = js.match(dp);
+  if (!dm) throw new Error('Decipher pattern not found');
+
+  const [, ktN, ktA1, ktA2, b0N, b0A1, b0A2] = dm;
+  console.log(`[YT] Pattern: ${ktN}(${ktA1},${ktA2},${b0N}(${b0A1},${b0A2},s))`);
+
+  // Find Ka wrapper near the decipher
+  const near = js.substring(dm.index, dm.index + 200);
+  const km = near.match(/(\w+)\((\d+)\s*,\s*(\d+)\s*,\s*\w+\)\s*\}/);
+  let expr;
+  if (km) {
+    expr = `${km[1]}(${km[2]},${km[3]},${ktN}(${ktA1},${ktA2},${b0N}(${b0A1},${b0A2},sig)))`;
+    console.log(`[YT] Full chain: ${km[1]}(${km[2]},${km[3]}, ${ktN}(...))`);
+  } else {
+    expr = `${ktN}(${ktA1},${ktA2},${b0N}(${b0A1},${b0A2},sig))`;
   }
-  return null;
+
+  const analysis = { url: playerJsUrl, decipherExpr: expr };
+  cachedAnalysis = analysis;
+  cacheExpiry = Date.now() + 2 * 3600 * 1000;
+  return analysis;
 }
 
 // ═══════════════════════════════════════════════
-// METHOD 2: Piped API (public YouTube proxies)
+// Step 3: Decipher in WebView
 // ═══════════════════════════════════════════════
-const PIPED_INSTANCES = [
-  'https://pipedapi.kavin.rocks',
-  'https://pipedapi.adminforge.de',
-  'https://pipedapi.r4fo.com',
-  'https://pipedapi.leptons.xyz',
-  'https://api.piped.yt',
-  'https://pipedapi.darkness.services',
-];
+async function decipher(playerJsUrl, decipherExpr, encSig) {
+  if (!isWebViewReady()) throw new Error('WebView not ready');
 
-async function tryPiped(videoId) {
-  for (const instance of PIPED_INSTANCES) {
-    try {
-      const res = await fetchWithTimeout(`${instance}/streams/${videoId}`, {}, 8000);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const best = pickBestAudio(data.audioStreams);
-      if (best?.url) {
-        console.log(`[YT] ✓ Piped OK (${instance})`);
-        return best.url;
-      }
-    } catch (err) { /* skip */ }
-  }
-  return null;
+  console.log('[YT] Deciphering in WebView...');
+  return await evalInWebView(null, encSig, playerJsUrl, decipherExpr);
 }
 
 // ═══════════════════════════════════════════════
-// METHOD 3: Invidious API
-// ═══════════════════════════════════════════════
-const INVIDIOUS_INSTANCES = [
-  'https://inv.nadeko.net',
-  'https://invidious.nerdvpn.de',
-  'https://invidious.protokoll-11.dev',
-  'https://vid.puffyan.us',
-  'https://inv.tux.pizza',
-  'https://invidious.lunar.icu',
-];
-
-async function tryInvidious(videoId) {
-  for (const instance of INVIDIOUS_INSTANCES) {
-    try {
-      const res = await fetchWithTimeout(`${instance}/api/v1/videos/${videoId}`, {}, 8000);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const audio = (data.adaptiveFormats || []).filter(f => f.type?.startsWith('audio/') && f.url);
-      const best = pickBestAudio(audio);
-      if (best?.url) {
-        console.log(`[YT] ✓ Invidious OK (${instance})`);
-        return best.url;
-      }
-    } catch (err) { /* skip */ }
-  }
-  return null;
-}
-
-// ═══════════════════════════════════════════════
-// MAIN: Try all methods
+// MAIN EXPORT
 // ═══════════════════════════════════════════════
 export async function getStreamUrl(videoId) {
-  if (!videoId || typeof videoId !== 'string') {
-    throw new Error('Invalid video ID');
-  }
+  if (!videoId) throw new Error('Invalid video ID');
 
-  console.log(`\n[YT] ═══ Getting stream for: ${videoId} ═══`);
+  console.log(`\n[YT] ═══ Stream for: ${videoId} ═══`);
   const t = Date.now();
 
-  // Method 1: WebView (most reliable — uses YouTube's own player)
-  const webViewUrl = await tryWebView(videoId);
-  if (webViewUrl) {
-    console.log(`[YT] ═══ SUCCESS via WebView in ${Date.now() - t}ms ═══\n`);
-    return webViewUrl;
+  // Step 1: Get video info
+  const info = await fetchVideoInfo(videoId);
+  if (info.directUrl) {
+    console.log(`[YT] ═══ OK (direct) ${Date.now() - t}ms ═══\n`);
+    return info.directUrl;
   }
 
-  // Method 2: Piped proxies
-  const pipedUrl = await tryPiped(videoId);
-  if (pipedUrl) {
-    console.log(`[YT] ═══ SUCCESS via Piped in ${Date.now() - t}ms ═══\n`);
-    return pipedUrl;
-  }
+  // Step 2: Analyze player JS
+  const analysis = await analyzePlayerJs(info.playerJsUrl);
 
-  // Method 3: Invidious proxies
-  const invUrl = await tryInvidious(videoId);
-  if (invUrl) {
-    console.log(`[YT] ═══ SUCCESS via Invidious in ${Date.now() - t}ms ═══\n`);
-    return invUrl;
-  }
+  // Step 3: Decipher signature
+  const decSig = await decipher(info.playerJsUrl, analysis.decipherExpr, info.encSig);
+  if (!decSig) throw new Error('Decipher returned empty');
 
-  console.error(`[YT] ═══ ALL METHODS FAILED after ${Date.now() - t}ms ═══\n`);
-  throw new Error('Could not get audio stream. All extraction methods failed. Check your internet connection and try again.');
+  // Step 4: Build URL
+  const finalUrl = `${info.baseUrl}&${info.sp}=${encodeURIComponent(decSig)}`;
+  console.log(`[YT] ═══ OK ${Date.now() - t}ms ═══\n`);
+  return finalUrl;
 }
